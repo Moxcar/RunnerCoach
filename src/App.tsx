@@ -1,27 +1,17 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider, useAuth } from './contexts/AuthContext'
-import Landing from './pages/Landing'
-import Login from './pages/Login'
-import Register from './pages/Register'
-import Dashboard from './pages/Dashboard'
-import Clients from './pages/Clients'
-import Payments from './pages/Payments'
-import Events from './pages/Events'
-import Settings from './pages/Settings'
-
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth()
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    )
-  }
-
-  return user ? <>{children}</> : <Navigate to="/login" replace />
-}
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "./contexts/AuthContext";
+import { AuthGuard, RedirectIfAuthenticated } from "./components/AuthGuard";
+import Landing from "./pages/Landing";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Dashboard from "./pages/Dashboard";
+import Clients from "./pages/Clients";
+import Payments from "./pages/Payments";
+import Events from "./pages/Events";
+import Settings from "./pages/Settings";
+import ClientDashboard from "./pages/ClientDashboard";
+import ClientPayments from "./pages/ClientPayments";
+import ClientEvents from "./pages/ClientEvents";
 
 function App() {
   return (
@@ -29,53 +19,92 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Landing />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+          <Route
+            path="/login"
+            element={
+              <RedirectIfAuthenticated>
+                <Login />
+              </RedirectIfAuthenticated>
+            }
+          />
+          <Route
+            path="/register"
+            element={
+              <RedirectIfAuthenticated>
+                <Register />
+              </RedirectIfAuthenticated>
+            }
+          />
+          {/* Coach routes */}
           <Route
             path="/dashboard"
             element={
-              <ProtectedRoute>
+              <AuthGuard requiredRole="coach">
                 <Dashboard />
-              </ProtectedRoute>
+              </AuthGuard>
             }
           />
           <Route
             path="/clients"
             element={
-              <ProtectedRoute>
+              <AuthGuard requiredRole="coach">
                 <Clients />
-              </ProtectedRoute>
+              </AuthGuard>
             }
           />
           <Route
             path="/payments"
             element={
-              <ProtectedRoute>
+              <AuthGuard requiredRole="coach">
                 <Payments />
-              </ProtectedRoute>
+              </AuthGuard>
             }
           />
           <Route
             path="/events"
             element={
-              <ProtectedRoute>
+              <AuthGuard requiredRole="coach">
                 <Events />
-              </ProtectedRoute>
+              </AuthGuard>
             }
           />
           <Route
             path="/settings"
             element={
-              <ProtectedRoute>
+              <AuthGuard>
                 <Settings />
-              </ProtectedRoute>
+              </AuthGuard>
+            }
+          />
+          {/* Client routes */}
+          <Route
+            path="/client/dashboard"
+            element={
+              <AuthGuard requiredRole="client">
+                <ClientDashboard />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/client/payments"
+            element={
+              <AuthGuard requiredRole="client">
+                <ClientPayments />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/client/events"
+            element={
+              <AuthGuard requiredRole="client">
+                <ClientEvents />
+              </AuthGuard>
             }
           />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
-  )
+  );
 }
 
-export default App
-
+export default App;

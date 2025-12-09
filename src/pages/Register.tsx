@@ -1,45 +1,57 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { useAuth } from '@/contexts/AuthContext'
-import logo from '/logo.svg'
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useAuth } from "@/contexts/AuthContext";
+import logo from "/logo.svg";
 
 export default function Register() {
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const { signUp, signInWithGoogle } = useAuth()
-  const navigate = useNavigate()
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState<"coach" | "client">("client");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { signUp, signInWithGoogle } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
+    e.preventDefault();
+    setError("");
+    setLoading(true);
 
     try {
-      await signUp(email, password, name)
-      navigate('/dashboard')
+      await signUp(email, password, name, role);
+      // La redirección se manejará automáticamente por RedirectIfAuthenticated
     } catch (err: any) {
-      setError(err.message || 'Error al registrarse')
-    } finally {
-      setLoading(false)
+      setError(err.message || "Error al registrarse");
+      setLoading(false);
     }
-  }
+  };
 
   const handleGoogleSignIn = async () => {
-    setError('')
+    setError("");
     try {
-      await signInWithGoogle()
+      await signInWithGoogle();
     } catch (err: any) {
-      setError(err.message || 'Error al registrarse con Google')
+      setError(err.message || "Error al registrarse con Google");
     }
-  }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted/20 p-4">
@@ -52,10 +64,8 @@ export default function Register() {
         <Card>
           <CardHeader className="text-center">
             <img src={logo} alt="RunnerCoach" className="h-16 mx-auto mb-4" />
-            <CardTitle className="text-2xl">Registrarse como coach</CardTitle>
-            <CardDescription>
-              Crea tu cuenta y comienza a gestionar tus clientes
-            </CardDescription>
+            <CardTitle className="text-2xl">Crear cuenta</CardTitle>
+            <CardDescription>Regístrate como coach o cliente</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -97,8 +107,27 @@ export default function Register() {
                   minLength={6}
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="role">Tipo de cuenta</Label>
+                <Select
+                  value={role}
+                  onValueChange={(value: "coach" | "client") => setRole(value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="client">
+                      Cliente - Ver mis pagos y eventos
+                    </SelectItem>
+                    <SelectItem value="coach">
+                      Coach - Gestionar clientes y eventos
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Registrando...' : 'Registrarme'}
+                {loading ? "Registrando..." : "Registrarme"}
               </Button>
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
@@ -117,7 +146,7 @@ export default function Register() {
                 Continuar con Google
               </Button>
               <div className="text-center text-sm text-muted-foreground">
-                ¿Ya tienes cuenta?{' '}
+                ¿Ya tienes cuenta?{" "}
                 <Link to="/login" className="text-primary hover:underline">
                   Inicia sesión aquí
                 </Link>
@@ -127,6 +156,5 @@ export default function Register() {
         </Card>
       </motion.div>
     </div>
-  )
+  );
 }
-

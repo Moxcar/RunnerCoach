@@ -1,44 +1,49 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { useAuth } from '@/contexts/AuthContext'
-import logo from '/logo.svg'
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { useAuth } from "@/contexts/AuthContext";
+import logo from "/logo.svg";
 
 export default function Login() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const { signIn, signInWithGoogle } = useAuth()
-  const navigate = useNavigate()
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { signIn, signInWithGoogle } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
+    e.preventDefault();
+    setError("");
+    setLoading(true);
 
     try {
-      await signIn(email, password)
-      navigate('/dashboard')
+      await signIn(email, password);
+      // El login fue exitoso, el RedirectIfAuthenticated manejará la redirección
+      // No resetear loading aquí ya que el componente se desmontará al redirigir
     } catch (err: any) {
-      setError(err.message || 'Error al iniciar sesión')
-    } finally {
-      setLoading(false)
+      setError(err.message || "Error al iniciar sesión");
+      setLoading(false);
     }
-  }
+  };
 
   const handleGoogleSignIn = async () => {
-    setError('')
+    setError("");
     try {
-      await signInWithGoogle()
+      await signInWithGoogle();
     } catch (err: any) {
-      setError(err.message || 'Error al iniciar sesión con Google')
+      setError(err.message || "Error al iniciar sesión con Google");
     }
-  }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted/20 p-4">
@@ -85,7 +90,7 @@ export default function Login() {
                 />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
+                {loading ? "Iniciando sesión..." : "Iniciar sesión"}
               </Button>
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
@@ -104,7 +109,7 @@ export default function Login() {
                 Continuar con Google
               </Button>
               <div className="text-center text-sm text-muted-foreground">
-                ¿No tienes cuenta?{' '}
+                ¿No tienes cuenta?{" "}
                 <Link to="/register" className="text-primary hover:underline">
                   Regístrate aquí
                 </Link>
@@ -114,6 +119,5 @@ export default function Login() {
         </Card>
       </motion.div>
     </div>
-  )
+  );
 }
-

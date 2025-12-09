@@ -26,11 +26,13 @@
 ## Paso 3: Configurar variables de entorno
 
 1. En la raíz del proyecto, crea un archivo `.env`:
+
 ```bash
 cp .env.example .env
 ```
 
 2. Abre el archivo `.env` y pega tus credenciales:
+
 ```env
 VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
 VITE_SUPABASE_ANON_KEY=tu-anon-key-aqui
@@ -72,33 +74,37 @@ VITE_STRIPE_PUBLISHABLE_KEY=pk_test_... (opcional por ahora)
 ## Paso 6: Verificar la configuración
 
 1. Reinicia el servidor de desarrollo:
+
 ```bash
 npm run dev
 ```
 
-2. Ve a `http://localhost:5174/`
+2. Ve a `http://localhost:5173/`
 3. Intenta registrarte con un nuevo usuario
 4. Si todo funciona, deberías poder iniciar sesión y ver el dashboard
 
 ## Solución de problemas
 
 ### Error: "Invalid API key"
+
 - Verifica que copiaste correctamente las credenciales en `.env`
 - Asegúrate de que el archivo `.env` está en la raíz del proyecto
 - Reinicia el servidor después de cambiar `.env`
 
 ### Error: "relation does not exist"
+
 - Verifica que ejecutaste el script SQL completo
 - Ve a **Table Editor** en Supabase y confirma que las tablas existen
 
 ### Error de autenticación
+
 - Verifica que RLS (Row Level Security) está habilitado
 - Revisa las políticas en **Authentication** > **Policies**
 
 ## Próximos pasos
 
 Una vez configurado Supabase, puedes:
+
 1. Configurar Stripe para pagos (ver README.md)
 2. Personalizar las políticas de seguridad según tus necesidades
 3. Agregar más funcionalidades a la aplicación
-

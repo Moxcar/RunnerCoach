@@ -22,16 +22,24 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const location = useLocation()
   const navigate = useNavigate()
-  const { signOut, user } = useAuth()
+  const { signOut, user, role } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  const menuItems = [
+  const coachMenuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
     { icon: Users, label: 'Clientes', path: '/clients' },
     { icon: CreditCard, label: 'Pagos', path: '/payments' },
     { icon: Calendar, label: 'Eventos', path: '/events' },
     { icon: Settings, label: 'Configuración', path: '/settings' },
   ]
+
+  const clientMenuItems = [
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/client/dashboard' },
+    { icon: CreditCard, label: 'Mis Pagos', path: '/client/payments' },
+    { icon: Calendar, label: 'Eventos', path: '/client/events' },
+  ]
+
+  const menuItems = role === 'coach' ? coachMenuItems : clientMenuItems
 
   const handleSignOut = async () => {
     await signOut()
