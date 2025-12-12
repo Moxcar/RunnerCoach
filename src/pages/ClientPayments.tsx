@@ -341,13 +341,14 @@ export default function ClientPayments() {
     }
   };
 
-  const totalPaid = payments
-    .filter((p) => p.status === "completed")
-    .reduce((sum, p) => sum + parseFloat(p.amount.toString()), 0);
-
   const pendingAmount = payments
     .filter((p) => p.status === "pending")
     .reduce((sum, p) => sum + parseFloat(p.amount.toString()), 0);
+
+  // Calcular siguiente pago (próximo pago pendiente más cercano)
+  const nextPayment = payments
+    .filter((p) => p.status === "pending")
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
 
   const getStatusBadge = (status: Payment["status"]) => {
     const styles = {
@@ -558,13 +559,26 @@ export default function ClientPayments() {
           <Card>
             <CardHeader>
               <CardTitle className="text-sm font-medium">
-                Total pagado
+                Siguiente pago
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
-                ${totalPaid.toLocaleString()}
-              </div>
+              {nextPayment ? (
+                <div>
+                  <div className="text-2xl font-bold">
+                    ${parseFloat(nextPayment.amount.toString()).toLocaleString()}
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {format(new Date(nextPayment.date), "dd MMM yyyy", {
+                      locale: es,
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-2xl font-bold text-muted-foreground">
+                  No hay pagos pendientes
+                </div>
+              )}
             </CardContent>
           </Card>
           <Card>

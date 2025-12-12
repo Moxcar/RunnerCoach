@@ -66,3 +66,10 @@ Esto ejecutará todas las migraciones en `supabase/migrations/` que aún no se h
 - `supabase db reset` - Resetear la base de datos y aplicar todas las migraciones
 - `supabase migration list` - Ver estado de las migraciones
 - `supabase db diff` - Ver diferencias entre local y remoto
+
+
+
+
+
+
+

@@ -161,3 +161,10 @@ SELECT
 FROM user_profiles 
 WHERE id = auth.uid();
 
+
+
+
+
+
+
+

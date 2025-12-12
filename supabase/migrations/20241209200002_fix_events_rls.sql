@@ -15,3 +15,10 @@ CREATE POLICY "Coaches can insert own events"
     )
   );
 
+
+
+
+
+
+
+

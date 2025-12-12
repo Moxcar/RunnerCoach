@@ -23,3 +23,10 @@ CREATE POLICY "Clients can insert own payments"
     )
   );
 
+
+
+
+
+
+
+

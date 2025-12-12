@@ -3,12 +3,13 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
-export type UserRole = "coach" | "client" | null;
+export type UserRole = "admin" | "coach" | "client" | null;
 
 export interface UserProfile {
   id: string;
   full_name: string;
   role: UserRole;
+  is_approved?: boolean;
 }
 
 interface AuthState {

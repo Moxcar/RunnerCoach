@@ -12,6 +12,14 @@ import Settings from "./pages/Settings";
 import ClientDashboard from "./pages/ClientDashboard";
 import ClientPayments from "./pages/ClientPayments";
 import ClientEvents from "./pages/ClientEvents";
+import ClientPlans from "./pages/ClientPlans";
+import AdminDashboard from "./pages/AdminDashboard";
+import AdminCoaches from "./pages/AdminCoaches";
+import AdminClients from "./pages/AdminClients";
+import AdminPayments from "./pages/AdminPayments";
+import AdminEvents from "./pages/AdminEvents";
+import AdminPlans from "./pages/AdminPlans";
+import EventDetail from "./pages/EventDetail";
 
 function App() {
   return (
@@ -19,6 +27,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Landing />} />
+          <Route path="/events/:id" element={<EventDetail />} />
           <Route
             path="/login"
             element={
@@ -76,6 +85,55 @@ function App() {
               </AuthGuard>
             }
           />
+          {/* Admin routes */}
+          <Route
+            path="/admin/dashboard"
+            element={
+              <AuthGuard requiredRole="admin">
+                <AdminDashboard />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/admin/coaches"
+            element={
+              <AuthGuard requiredRole="admin">
+                <AdminCoaches />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/admin/clients"
+            element={
+              <AuthGuard requiredRole="admin">
+                <AdminClients />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/admin/payments"
+            element={
+              <AuthGuard requiredRole="admin">
+                <AdminPayments />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/admin/events"
+            element={
+              <AuthGuard requiredRole="admin">
+                <AdminEvents />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/admin/plans"
+            element={
+              <AuthGuard requiredRole="admin">
+                <AdminPlans />
+              </AuthGuard>
+            }
+          />
           {/* Client routes */}
           <Route
             path="/client/dashboard"
@@ -98,6 +156,14 @@ function App() {
             element={
               <AuthGuard requiredRole="client">
                 <ClientEvents />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/client/plans"
+            element={
+              <AuthGuard requiredRole="client">
+                <ClientPlans />
               </AuthGuard>
             }
           />

@@ -12,6 +12,30 @@
 -- Habilitar extensión pgcrypto si no está habilitada
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- ============================================
+-- PASO 0: ACTUALIZAR CONSTRAINT Y TRIGGER
+-- ============================================
+
+-- Este bloque ya no es necesario aquí, se hace después de borrar datos
+-- Se mantiene solo para actualizar el trigger
+
+-- Actualizar el trigger handle_new_user para usar 'user' como valor por defecto
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.user_profiles (id, full_name, role)
+  VALUES (
+    new.id,
+    coalesce(new.raw_user_meta_data->>'name', new.email),
+    coalesce(new.raw_user_meta_data->>'role', 'user')::text
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    full_name = coalesce(new.raw_user_meta_data->>'name', new.email),
+    role = coalesce(new.raw_user_meta_data->>'role', 'user')::text;
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- Función auxiliar para eliminar acentos de texto (para emails)
 CREATE OR REPLACE FUNCTION remove_accents(text)
 RETURNS text AS $$
@@ -34,14 +58,49 @@ ALTER TABLE payments DISABLE ROW LEVEL SECURITY;
 ALTER TABLE events DISABLE ROW LEVEL SECURITY;
 ALTER TABLE clients DISABLE ROW LEVEL SECURITY;
 ALTER TABLE user_profiles DISABLE ROW LEVEL SECURITY;
+ALTER TABLE plans DISABLE ROW LEVEL SECURITY;
+ALTER TABLE registration_links DISABLE ROW LEVEL SECURITY;
 
 -- Borrar datos en orden (respetando foreign keys)
 DELETE FROM event_registrations;
 DELETE FROM payments;
 DELETE FROM events;
 DELETE FROM clients;
+DELETE FROM plans;
+DELETE FROM registration_links; -- Debe borrarse antes de user_profiles por la FK created_by
 DELETE FROM user_profiles;
 DELETE FROM auth.users;
+
+-- Actualizar constraint de role ANTES de reactivar RLS
+DO $$
+DECLARE
+  constraint_name text;
+BEGIN
+  -- Buscar y eliminar todos los constraints relacionados con role
+  FOR constraint_name IN 
+    SELECT conname 
+    FROM pg_constraint 
+    WHERE conrelid = 'user_profiles'::regclass 
+    AND contype = 'c'
+    AND (pg_get_constraintdef(oid) LIKE '%role%' OR conname LIKE '%role%')
+  LOOP
+    EXECUTE format('ALTER TABLE user_profiles DROP CONSTRAINT IF EXISTS %I CASCADE', constraint_name);
+  END LOOP;
+  
+  -- Agregar nuevo constraint que incluye 'admin', 'coach', 'user'
+  BEGIN
+    ALTER TABLE user_profiles 
+    ADD CONSTRAINT user_profiles_role_check 
+    CHECK (role IN ('admin', 'coach', 'user'));
+  EXCEPTION
+    WHEN duplicate_object THEN
+      -- Si ya existe, intentar eliminarlo y recrearlo
+      ALTER TABLE user_profiles DROP CONSTRAINT IF EXISTS user_profiles_role_check CASCADE;
+      ALTER TABLE user_profiles 
+      ADD CONSTRAINT user_profiles_role_check 
+      CHECK (role IN ('admin', 'coach', 'user'));
+  END;
+END $$;
 
 -- Reactivar RLS
 ALTER TABLE event_registrations ENABLE ROW LEVEL SECURITY;
@@ -49,6 +108,8 @@ ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE plans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE registration_links ENABLE ROW LEVEL SECURITY;
 
 -- ============================================
 -- PASO 2: CREAR USUARIOS (sin enviar correos)
@@ -57,19 +118,23 @@ ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
 -- Función auxiliar para generar emails aleatorios
 DO $$
 DECLARE
-  coach_id uuid;
+  admin_id uuid;
+  coach_ids uuid[] := ARRAY[]::uuid[];
+  all_coach_ids uuid[] := ARRAY[]::uuid[]; -- Incluye admin + coaches
   client_ids uuid[] := ARRAY[]::uuid[];
   client_count int := 20 + floor(random() * 31)::int; -- Número aleatorio entre 20-50
   i int;
+  j int;
   random_email text;
   random_name text;
   first_names text[] := ARRAY['Juan', 'María', 'Carlos', 'Ana', 'Luis', 'Laura', 'Pedro', 'Carmen', 'Miguel', 'Isabel', 'José', 'Patricia', 'Francisco', 'Lucía', 'Antonio', 'Sofía', 'Manuel', 'Elena', 'David', 'Marta', 'Javier', 'Cristina', 'Daniel', 'Paula', 'Alejandro', 'Andrea', 'Pablo', 'Sara', 'Jorge', 'Natalia', 'Roberto', 'Claudia', 'Fernando', 'Raquel', 'Álvaro', 'Beatriz', 'Rubén', 'Mónica', 'Sergio', 'Verónica'];
   last_names text[] := ARRAY['García', 'Rodríguez', 'González', 'Fernández', 'López', 'Martínez', 'Sánchez', 'Pérez', 'Gómez', 'Martín', 'Jiménez', 'Ruiz', 'Hernández', 'Díaz', 'Moreno', 'Muñoz', 'Álvarez', 'Romero', 'Alonso', 'Gutiérrez', 'Navarro', 'Torres', 'Domínguez', 'Vázquez', 'Ramos', 'Gil', 'Ramírez', 'Serrano', 'Blanco', 'Suárez', 'Molina', 'Morales', 'Ortega', 'Delgado', 'Castro', 'Ortiz', 'Rubio', 'Marín', 'Sanz', 'Núñez'];
   random_first text;
   random_last text;
+  temp_coach_id uuid;
 BEGIN
-  -- Crear el coach
-  coach_id := gen_random_uuid();
+  -- Crear el admin
+  admin_id := gen_random_uuid();
   random_first := first_names[floor(random() * array_length(first_names, 1)) + 1];
   random_last := last_names[floor(random() * array_length(last_names, 1)) + 1];
   random_name := random_first || ' ' || random_last;
@@ -92,13 +157,13 @@ BEGIN
     aud,
     role
   ) VALUES (
-    coach_id,
+    admin_id,
     '00000000-0000-0000-0000-000000000000',
     random_email,
     crypt('password123', gen_salt('bf')),
     now(),
     '{"provider":"email","providers":["email"]}',
-    jsonb_build_object('name', random_name, 'role', 'coach'),
+    jsonb_build_object('name', random_name, 'role', 'admin'),
     now(),
     now(),
     '',
@@ -108,6 +173,54 @@ BEGIN
     'authenticated',
     'authenticated'
   );
+  
+  all_coach_ids := array_append(all_coach_ids, admin_id);
+  
+  -- Crear 3 coaches
+  FOR j IN 1..3 LOOP
+    temp_coach_id := gen_random_uuid();
+    random_first := first_names[floor(random() * array_length(first_names, 1)) + 1];
+    random_last := last_names[floor(random() * array_length(last_names, 1)) + 1];
+    random_name := random_first || ' ' || random_last;
+    random_email := lower(replace(remove_accents(random_name), ' ', '.')) || j::text || '@runnercoach.test';
+    
+    INSERT INTO auth.users (
+      id,
+      instance_id,
+      email,
+      encrypted_password,
+      email_confirmed_at,
+      raw_app_meta_data,
+      raw_user_meta_data,
+      created_at,
+      updated_at,
+      confirmation_token,
+      email_change,
+      email_change_token_new,
+      recovery_token,
+      aud,
+      role
+    ) VALUES (
+      temp_coach_id,
+      '00000000-0000-0000-0000-000000000000',
+      random_email,
+      crypt('password123', gen_salt('bf')),
+      now(),
+      '{"provider":"email","providers":["email"]}',
+      jsonb_build_object('name', random_name, 'role', 'coach'),
+      now(),
+      now(),
+      '',
+      '',
+      '',
+      '',
+      'authenticated',
+      'authenticated'
+    );
+    
+    coach_ids := array_append(coach_ids, temp_coach_id);
+    all_coach_ids := array_append(all_coach_ids, temp_coach_id);
+  END LOOP;
 
   -- Crear clientes
   FOR i IN 1..client_count LOOP
@@ -142,7 +255,7 @@ BEGIN
         crypt('password123', gen_salt('bf')),
         now(),
         '{"provider":"email","providers":["email"]}',
-        jsonb_build_object('name', random_name, 'role', 'client'),
+        jsonb_build_object('name', random_name, 'role', 'user'),
         now() - (random() * interval '180 days'), -- Clientes creados en los últimos 6 meses
         now(),
         '',
@@ -158,7 +271,146 @@ BEGIN
   END LOOP;
 
   -- ============================================
-  -- PASO 3: CREAR CLIENTES (tabla clients)
+  -- PASO 2.5: CREAR PERFILES DE USUARIO
+  -- ============================================
+  
+  DECLARE
+    admin_name text;
+    coach_name text;
+    user_name text;
+  BEGIN
+    -- Obtener nombre del admin
+    SELECT coalesce(raw_user_meta_data->>'name', email) INTO admin_name
+    FROM auth.users WHERE id = admin_id;
+    
+    -- Crear perfil para admin
+    INSERT INTO user_profiles (id, full_name, role, is_approved)
+    VALUES (admin_id, admin_name, 'admin', true)
+    ON CONFLICT (id) DO UPDATE SET 
+      full_name = admin_name,
+      role = 'admin', 
+      is_approved = true;
+    
+    -- Crear perfiles para coaches
+    FOR j IN 1..array_length(coach_ids, 1) LOOP
+      SELECT coalesce(raw_user_meta_data->>'name', email) INTO coach_name
+      FROM auth.users WHERE id = coach_ids[j];
+      
+      INSERT INTO user_profiles (id, full_name, role, is_approved)
+      VALUES (coach_ids[j], coach_name, 'coach', true)
+      ON CONFLICT (id) DO UPDATE SET 
+        full_name = coach_name,
+        role = 'coach', 
+        is_approved = true;
+    END LOOP;
+    
+    -- Crear perfiles para usuarios
+    FOR i IN 1..array_length(client_ids, 1) LOOP
+      SELECT coalesce(raw_user_meta_data->>'name', email) INTO user_name
+      FROM auth.users WHERE id = client_ids[i];
+      
+      INSERT INTO user_profiles (id, full_name, role, is_approved)
+      VALUES (client_ids[i], user_name, 'user', true)
+      ON CONFLICT (id) DO UPDATE SET 
+        full_name = user_name,
+        role = 'user', 
+        is_approved = true;
+    END LOOP;
+  END;
+
+  -- ============================================
+  -- PASO 3: CREAR PLANES (3 planes globales)
+  -- ============================================
+  
+  DECLARE
+    plan_ids uuid[] := ARRAY[]::uuid[];
+    plan_id uuid;
+  BEGIN
+    -- Crear solo 3 planes globales (asignados al admin)
+    
+    -- Plan Básico
+    plan_id := gen_random_uuid();
+    INSERT INTO plans (
+      id,
+      name,
+      cost,
+      features,
+      is_active,
+      created_by
+    ) VALUES (
+      plan_id,
+      'Plan Básico',
+      29.99,
+      ARRAY[
+        'Seguimiento mensual',
+        'Plan de entrenamiento básico',
+        'Acceso a eventos locales',
+        'Soporte por email'
+      ],
+      true,
+      admin_id
+    );
+    plan_ids := array_append(plan_ids, plan_id);
+    
+    -- Plan Intermedio
+    plan_id := gen_random_uuid();
+    INSERT INTO plans (
+      id,
+      name,
+      cost,
+      features,
+      is_active,
+      created_by
+    ) VALUES (
+      plan_id,
+      'Plan Intermedio',
+      59.99,
+      ARRAY[
+        'Seguimiento semanal',
+        'Plan de entrenamiento personalizado',
+        'Acceso a todos los eventos',
+        'Soporte prioritario',
+        'Análisis de rendimiento',
+        'Consultas ilimitadas'
+      ],
+      true,
+      admin_id
+    );
+    plan_ids := array_append(plan_ids, plan_id);
+    
+    -- Plan Premium
+    plan_id := gen_random_uuid();
+    INSERT INTO plans (
+      id,
+      name,
+      cost,
+      features,
+      is_active,
+      created_by
+    ) VALUES (
+      plan_id,
+      'Plan Premium',
+      99.99,
+      ARRAY[
+        'Seguimiento diario',
+        'Plan de entrenamiento ultra personalizado',
+        'Acceso VIP a eventos exclusivos',
+        'Soporte 24/7',
+        'Análisis avanzado de rendimiento',
+        'Consultas ilimitadas',
+        'Sesiones de coaching en vivo',
+        'Nutrición personalizada',
+        'Preparación para competiciones'
+      ],
+      true,
+      admin_id
+    );
+    plan_ids := array_append(plan_ids, plan_id);
+  END;
+
+  -- ============================================
+  -- PASO 4: CREAR CLIENTES (tabla clients)
+  -- Repartir entre admin y los 3 coaches
   -- ============================================
   
   DECLARE
@@ -168,7 +420,14 @@ BEGIN
     phone_prefixes text[] := ARRAY['+34 600', '+34 601', '+34 602', '+34 603', '+34 610', '+34 611', '+34 612', '+34 613', '+34 620', '+34 621'];
     phone_number text;
     client_user_id uuid;
+    selected_plan_id uuid;
+    all_plan_ids uuid[];
+    assigned_coach_id uuid;
+    coach_index int;
   BEGIN
+    -- Obtener todos los planes creados
+    SELECT array_agg(id) INTO all_plan_ids FROM plans;
+    
     FOR i IN 1..array_length(client_ids, 1) LOOP
       client_user_id := client_ids[i];
       
@@ -177,12 +436,24 @@ BEGIN
       FROM auth.users
       WHERE id = client_user_id;
       
+      -- Asignar cliente a un coach/admin aleatorio (repartir equitativamente)
+      coach_index := ((i - 1) % array_length(all_coach_ids, 1)) + 1;
+      assigned_coach_id := all_coach_ids[coach_index];
+      
       -- Generar teléfono aleatorio
       phone_number := phone_prefixes[floor(random() * array_length(phone_prefixes, 1)) + 1] || ' ' || 
                       lpad(floor(random() * 1000000)::text, 6, '0');
       
       -- Status de pago aleatorio
       status := payment_statuses[floor(random() * array_length(payment_statuses, 1)) + 1];
+      
+      -- Asignar plan aleatorio de los planes globales (70% de probabilidad de tener plan)
+      IF random() < 0.7 AND all_plan_ids IS NOT NULL AND array_length(all_plan_ids, 1) > 0 THEN
+        -- Seleccionar un plan aleatorio de todos los planes disponibles
+        selected_plan_id := all_plan_ids[floor(random() * array_length(all_plan_ids, 1)) + 1];
+      ELSE
+        selected_plan_id := NULL;
+      END IF;
       
       INSERT INTO clients (
         coach_id,
@@ -191,15 +462,17 @@ BEGIN
         email,
         phone,
         payment_status,
+        plan_id,
         notes,
         created_at
       ) VALUES (
-        coach_id,
+        assigned_coach_id,
         client_user_id,
         random_name,
         (SELECT email FROM auth.users WHERE id = client_user_id),
         phone_number,
         status,
+        selected_plan_id,
         CASE WHEN random() > 0.7 THEN 'Cliente activo desde hace ' || floor(random() * 12)::text || ' meses' ELSE NULL END,
         (SELECT created_at FROM auth.users WHERE id = client_user_id)
       );
@@ -207,7 +480,7 @@ BEGIN
   END;
 
   -- ============================================
-  -- PASO 4: CREAR HISTORIAL DE PAGOS RANDOM
+  -- PASO 5: CREAR HISTORIAL DE PAGOS RANDOM
   -- ============================================
   
   DECLARE
@@ -262,7 +535,8 @@ BEGIN
   END;
 
   -- ============================================
-  -- PASO 5: CREAR EVENTOS (últimos 6 meses)
+  -- PASO 6: CREAR EVENTOS (últimos 6 meses)
+  -- Crear eventos para cada coach/admin
   -- ============================================
   
   DECLARE
@@ -312,98 +586,106 @@ BEGIN
     event_description text;
     event_date date;
     event_price decimal(10,2);
-    num_events int := 12; -- Crear 12 eventos en los últimos 6 meses
+    num_events_per_coach int := 3; -- 3 eventos por coach/admin
     event_id uuid;
+    event_coach_id uuid;
   BEGIN
-    FOR i IN 1..num_events LOOP
-      -- Fecha aleatoria en los últimos 6 meses
-      event_date := current_date - (random() * 180)::int;
+    -- Crear eventos para cada coach/admin
+    FOR j IN 1..array_length(all_coach_ids, 1) LOOP
+      event_coach_id := all_coach_ids[j];
       
-      -- Seleccionar datos aleatorios
-      event_name := event_names[floor(random() * array_length(event_names, 1)) + 1] || ' ' || 
-                    to_char(event_date, 'MM/YYYY');
-      event_location := locations[floor(random() * array_length(locations, 1)) + 1];
-      event_description := descriptions[floor(random() * array_length(descriptions, 1)) + 1];
-      event_price := (0 + random() * 100)::decimal(10,2); -- Entre 0 y 100
-      
-      INSERT INTO events (
-        coach_id,
-        name,
-        date,
-        location,
-        description,
-        price,
-        created_at
-      ) VALUES (
-        coach_id,
-        event_name,
-        event_date,
-        event_location,
-        event_description,
-        event_price,
-        event_date::timestamp with time zone - interval '7 days' -- Creado 7 días antes del evento
-      ) RETURNING id INTO event_id;
-      
-      -- ============================================
-      -- PASO 6: CREAR REGISTROS DE EVENTOS
-      -- ============================================
-      
-      -- Cada evento tiene entre 3 y 20 participantes aleatorios
-      DECLARE
-        num_registrations int := 3 + floor(random() * 18)::int;
-        registration_client_id uuid;
-        registration_user_id uuid;
-        selected_clients uuid[];
-        j int;
-        v_coach_id uuid := coach_id; -- Alias para evitar ambigüedad
-        v_event_id uuid := event_id; -- Alias para evitar ambigüedad
-      BEGIN
-        -- Seleccionar clientes aleatorios para este evento
-        SELECT array_agg(c.user_id ORDER BY random())
-        INTO selected_clients
-        FROM clients c
-        WHERE c.coach_id = v_coach_id
-        LIMIT num_registrations;
+      FOR i IN 1..num_events_per_coach LOOP
+        -- Fecha aleatoria en los últimos 6 meses
+        event_date := current_date - (random() * 180)::int;
         
-        -- Si hay clientes seleccionados, crear registros
-        IF selected_clients IS NOT NULL THEN
-          FOR j IN 1..array_length(selected_clients, 1) LOOP
-            registration_user_id := selected_clients[j];
-            
-            SELECT id INTO registration_client_id
-            FROM clients
-            WHERE user_id = registration_user_id
-            LIMIT 1;
-            
-            -- Solo registrar si el evento ya pasó o es futuro (lógica realista)
-            IF event_date <= current_date OR random() > 0.3 THEN
-              -- Usar una subconsulta para evitar ambigüedad en ON CONFLICT
-              INSERT INTO event_registrations (
-                event_id,
-                client_id,
-                user_id,
-                created_at
-              )
-              SELECT 
-                v_event_id,
-                registration_client_id,
-                registration_user_id,
-                event_date::timestamp with time zone - (random() * 30)::int * interval '1 day'
-              WHERE NOT EXISTS (
-                SELECT 1 FROM event_registrations er
-                WHERE er.event_id = v_event_id 
-                AND er.user_id = registration_user_id
-              );
-            END IF;
-          END LOOP;
-        END IF;
-      END;
+        -- Seleccionar datos aleatorios
+        event_name := event_names[floor(random() * array_length(event_names, 1)) + 1] || ' ' || 
+                      to_char(event_date, 'MM/YYYY');
+        event_location := locations[floor(random() * array_length(locations, 1)) + 1];
+        event_description := descriptions[floor(random() * array_length(descriptions, 1)) + 1];
+        event_price := (0 + random() * 100)::decimal(10,2); -- Entre 0 y 100
+        
+        INSERT INTO events (
+          coach_id,
+          name,
+          date,
+          location,
+          description,
+          price,
+          created_at
+        ) VALUES (
+          event_coach_id,
+          event_name,
+          event_date,
+          event_location,
+          event_description,
+          event_price,
+          event_date::timestamp with time zone - interval '7 days' -- Creado 7 días antes del evento
+        ) RETURNING id INTO event_id;
+      
+        -- ============================================
+        -- PASO 7: CREAR REGISTROS DE EVENTOS
+        -- ============================================
+        
+        -- Cada evento tiene entre 3 y 20 participantes aleatorios
+        DECLARE
+          num_registrations int := 3 + floor(random() * 18)::int;
+          registration_client_id uuid;
+          registration_user_id uuid;
+          selected_clients uuid[];
+          k int;
+          v_coach_id uuid := event_coach_id; -- Alias para evitar ambigüedad
+          v_event_id uuid := event_id; -- Alias para evitar ambigüedad
+        BEGIN
+          -- Seleccionar clientes aleatorios para este evento (del coach que creó el evento)
+          SELECT array_agg(c.user_id ORDER BY random())
+          INTO selected_clients
+          FROM clients c
+          WHERE c.coach_id = v_coach_id
+          LIMIT num_registrations;
+          
+          -- Si hay clientes seleccionados, crear registros
+          IF selected_clients IS NOT NULL THEN
+            FOR k IN 1..array_length(selected_clients, 1) LOOP
+              registration_user_id := selected_clients[k];
+              
+              SELECT id INTO registration_client_id
+              FROM clients
+              WHERE user_id = registration_user_id
+              LIMIT 1;
+              
+              -- Solo registrar si el evento ya pasó o es futuro (lógica realista)
+              IF event_date <= current_date OR random() > 0.3 THEN
+                -- Usar una subconsulta para evitar ambigüedad en ON CONFLICT
+                INSERT INTO event_registrations (
+                  event_id,
+                  client_id,
+                  user_id,
+                  created_at
+                )
+                SELECT 
+                  v_event_id,
+                  registration_client_id,
+                  registration_user_id,
+                  event_date::timestamp with time zone - (random() * 30)::int * interval '1 day'
+                WHERE NOT EXISTS (
+                  SELECT 1 FROM event_registrations er
+                  WHERE er.event_id = v_event_id 
+                  AND er.user_id = registration_user_id
+                );
+              END IF;
+            END LOOP;
+          END IF;
+        END;
+      END LOOP;
     END LOOP;
   END;
 
   RAISE NOTICE 'Seeder completado exitosamente!';
-  RAISE NOTICE 'Coach creado con ID: %', coach_id;
+  RAISE NOTICE 'Admin creado con ID: %', admin_id;
+  RAISE NOTICE 'Coaches creados: %', array_length(coach_ids, 1);
   RAISE NOTICE 'Clientes creados: %', client_count;
+  RAISE NOTICE 'Total coaches/admin: %', array_length(all_coach_ids, 1);
 END $$;
 
 -- ============================================
@@ -411,7 +693,15 @@ END $$;
 -- ============================================
 
 SELECT 
-  'Coach' as tipo,
+  'Admin' as tipo,
+  count(*) as cantidad
+FROM user_profiles
+WHERE role = 'admin'
+
+UNION ALL
+
+SELECT 
+  'Coaches' as tipo,
   count(*) as cantidad
 FROM user_profiles
 WHERE role = 'coach'
@@ -419,10 +709,10 @@ WHERE role = 'coach'
 UNION ALL
 
 SELECT 
-  'Clientes' as tipo,
+  'Usuarios' as tipo,
   count(*) as cantidad
 FROM user_profiles
-WHERE role = 'client'
+WHERE role = 'user'
 
 UNION ALL
 
@@ -443,5 +733,12 @@ UNION ALL
 SELECT 
   'Registros de Eventos' as tipo,
   count(*) as cantidad
-FROM event_registrations;
+FROM event_registrations
+
+UNION ALL
+
+SELECT 
+  'Planes' as tipo,
+  count(*) as cantidad
+FROM plans;
 

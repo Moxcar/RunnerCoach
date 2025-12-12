@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Calendar, MapPin, Upload, X } from "lucide-react";
+import {
+  Plus,
+  Calendar,
+  MapPin,
+  Upload,
+  X,
+  Edit,
+  Users,
+  Eye,
+} from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -36,18 +46,22 @@ interface Event {
   image_url: string | null;
   price: number;
   registered_clients: number;
+  max_capacity: number | null;
 }
 
 export default function Events() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [events, setEvents] = useState<Event[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     date: "",
     location: "",
     description: "",
     price: "0",
+    max_capacity: "",
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -173,6 +187,36 @@ export default function Events() {
     }
   };
 
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      date: "",
+      location: "",
+      description: "",
+      price: "0",
+      max_capacity: "",
+    });
+    setImageFile(null);
+    setImagePreview(null);
+    setEditingEvent(null);
+    setError("");
+  };
+
+  const handleEditEvent = (event: Event) => {
+    setEditingEvent(event);
+    setFormData({
+      name: event.name,
+      date: event.date.split("T")[0],
+      location: event.location || "",
+      description: event.description || "",
+      price: event.price.toString(),
+      max_capacity: event.max_capacity?.toString() || "",
+    });
+    setImagePreview(event.image_url || null);
+    setImageFile(null);
+    setIsDialogOpen(true);
+  };
+
   const handleAddEvent = async () => {
     if (!user) {
       setError("No estás autenticado");
@@ -184,12 +228,23 @@ export default function Events() {
       return;
     }
 
+    // Validar que max_capacity sea mayor que los inscritos si se establece
+    if (editingEvent && formData.max_capacity) {
+      const maxCapacity = parseInt(formData.max_capacity);
+      if (maxCapacity < editingEvent.registered_clients) {
+        setError(
+          `El cupo máximo no puede ser menor que los inscritos actuales (${editingEvent.registered_clients})`
+        );
+        return;
+      }
+    }
+
     setError("");
     setUploading(true);
 
     try {
       // Intentar subir la imagen primero (si existe), pero no bloquear si falla
-      let imageUrl: string | null = null;
+      let imageUrl: string | null = editingEvent?.image_url || null;
 
       if (imageFile) {
         try {
@@ -200,59 +255,83 @@ export default function Events() {
             imageError
           );
           // Continuar sin imagen en lugar de fallar completamente
-          imageUrl = null;
+          imageUrl = editingEvent?.image_url || null;
         }
       }
 
-      // Insertar el evento directamente sin verificar el perfil primero
-      // La política RLS se encargará de la verificación
-      const { error: insertError } = await supabase
-        .from("events")
-        .insert({
-          coach_id: user.id,
-          name: formData.name,
-          date: formData.date,
-          location: formData.location || null,
-          description: formData.description || null,
-          image_url: imageUrl,
-          price: parseFloat(formData.price) || 0,
-        })
-        .select();
+      const eventData = {
+        name: formData.name,
+        date: formData.date,
+        location: formData.location || null,
+        description: formData.description || null,
+        image_url: imageUrl,
+        price: parseFloat(formData.price) || 0,
+        max_capacity: formData.max_capacity
+          ? parseInt(formData.max_capacity)
+          : null,
+      };
 
-      if (insertError) {
-        console.error("Insert error details:", insertError);
-        console.error("User ID:", user.id);
-        console.error("User email:", user.email);
+      if (editingEvent) {
+        // Actualizar evento existente
+        const { error: updateError } = await supabase
+          .from("events")
+          .update(eventData)
+          .eq("id", editingEvent.id)
+          .eq("coach_id", user.id);
 
-        // Mensaje de error más descriptivo
-        let errorMessage = insertError.message;
-        if (
-          insertError.code === "42501" ||
-          insertError.message.includes("row-level security")
-        ) {
-          errorMessage =
-            "No tienes permisos para crear eventos. Verifica que tu cuenta sea de tipo 'coach'.";
+        if (updateError) {
+          console.error("Update error details:", updateError);
+          let errorMessage = updateError.message;
+          if (
+            updateError.code === "42501" ||
+            updateError.message.includes("row-level security")
+          ) {
+            errorMessage =
+              "No tienes permisos para editar eventos. Verifica que tu cuenta sea de tipo 'coach'.";
+          }
+          throw new Error(errorMessage);
         }
+      } else {
+        // Insertar nuevo evento
+        const { error: insertError } = await supabase
+          .from("events")
+          .insert({
+            coach_id: user.id,
+            ...eventData,
+          })
+          .select();
 
-        throw new Error(errorMessage);
+        if (insertError) {
+          console.error("Insert error details:", insertError);
+          console.error("User ID:", user.id);
+          console.error("User email:", user.email);
+
+          let errorMessage = insertError.message;
+          if (
+            insertError.code === "42501" ||
+            insertError.message.includes("row-level security")
+          ) {
+            errorMessage =
+              "No tienes permisos para crear eventos. Verifica que tu cuenta sea de tipo 'coach'.";
+          }
+
+          throw new Error(errorMessage);
+        }
       }
 
-      // Si llegamos aquí, el evento se creó exitosamente
+      // Si llegamos aquí, el evento se creó/actualizó exitosamente
       setIsDialogOpen(false);
-      setFormData({
-        name: "",
-        date: "",
-        location: "",
-        description: "",
-        price: "0",
-      });
-      setImageFile(null);
-      setImagePreview(null);
-      setError("");
+      resetForm();
       loadEvents();
     } catch (error: any) {
-      console.error("Error creating event:", error);
-      setError(error.message || "Error al crear el evento");
+      console.error(
+        `Error ${editingEvent ? "updating" : "creating"} event:`,
+        error
+      );
+      setError(
+        error.message ||
+          `Error al ${editingEvent ? "actualizar" : "crear"} el evento`
+      );
     } finally {
       setUploading(false);
     }
@@ -268,16 +347,25 @@ export default function Events() {
         <div className="flex justify-end">
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button
+                onClick={() => {
+                  resetForm();
+                  setIsDialogOpen(true);
+                }}
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 Crear evento
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Crear nuevo evento</DialogTitle>
+                <DialogTitle>
+                  {editingEvent ? "Editar evento" : "Crear nuevo evento"}
+                </DialogTitle>
                 <DialogDescription>
-                  Completa la información del evento
+                  {editingEvent
+                    ? "Modifica la información del evento"
+                    : "Completa la información del evento"}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -319,12 +407,14 @@ export default function Events() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="description">Descripción</Label>
-                  <Input
+                  <textarea
                     id="description"
+                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     value={formData.description}
                     onChange={(e) =>
                       setFormData({ ...formData, description: e.target.value })
                     }
+                    rows={3}
                   />
                 </div>
                 <div className="space-y-2">
@@ -339,6 +429,29 @@ export default function Events() {
                       setFormData({ ...formData, price: e.target.value })
                     }
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="max_capacity">
+                    Cupo máximo (opcional, dejar vacío para sin límite)
+                  </Label>
+                  <Input
+                    id="max_capacity"
+                    type="number"
+                    min="1"
+                    value={formData.max_capacity}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        max_capacity: e.target.value,
+                      })
+                    }
+                    placeholder="Sin límite"
+                  />
+                  {editingEvent && formData.max_capacity && (
+                    <p className="text-xs text-muted-foreground">
+                      Inscritos actuales: {editingEvent.registered_clients}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="image">Imagen del evento</Label>
@@ -387,15 +500,19 @@ export default function Events() {
                   variant="outline"
                   onClick={() => {
                     setIsDialogOpen(false);
-                    setImageFile(null);
-                    setImagePreview(null);
-                    setError("");
+                    resetForm();
                   }}
                 >
                   Cancelar
                 </Button>
                 <Button onClick={handleAddEvent} disabled={uploading}>
-                  {uploading ? "Creando..." : "Crear"}
+                  {uploading
+                    ? editingEvent
+                      ? "Actualizando..."
+                      : "Creando..."
+                    : editingEvent
+                    ? "Actualizar"
+                    : "Crear"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -411,13 +528,21 @@ export default function Events() {
               transition={{ delay: index * 0.1 }}
             >
               <Card>
-                {event.image_url && (
-                  <div className="w-full h-48 overflow-hidden rounded-t-lg">
+                {event.image_url ? (
+                  <div className="w-full h-48 overflow-hidden rounded-t-lg bg-gray-200">
                     <img
                       src={event.image_url}
                       alt={event.name}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = "none";
+                      }}
                     />
+                  </div>
+                ) : (
+                  <div className="w-full h-48 bg-gradient-to-br from-[#e9540d]/10 to-[#b07a1e]/10 flex items-center justify-center rounded-t-lg">
+                    <Calendar className="h-12 w-12 text-[#e9540d]/30" />
                   </div>
                 )}
                 <CardHeader>
@@ -444,22 +569,54 @@ export default function Events() {
                       {event.price === 0 ? (
                         <span className="text-green-600">Gratis</span>
                       ) : (
-                        `$${event.price.toLocaleString()}`
+                        `$${event.price.toLocaleString()} MXN`
                       )}
                     </span>
                   </div>
                   <div className="pt-4 border-t">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">
-                        Inscritos
-                      </span>
-                      <span className="font-semibold">
-                        {event.registered_clients} clientes
-                      </span>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">
+                          Inscritos
+                        </span>
+                        <span className="font-semibold">
+                          {event.registered_clients} clientes
+                        </span>
+                      </div>
+                      {event.max_capacity && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-muted-foreground flex items-center gap-1">
+                            <Users className="h-3 w-3" />
+                            Cupo máximo
+                          </span>
+                          <span
+                            className={`font-semibold ${
+                              event.registered_clients >= event.max_capacity
+                                ? "text-red-600"
+                                : event.registered_clients >=
+                                  event.max_capacity * 0.8
+                                ? "text-orange-600"
+                                : "text-green-600"
+                            }`}
+                          >
+                            {event.registered_clients} / {event.max_capacity}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    <Button variant="outline" className="w-full mt-4">
-                      Ver inscritos
-                    </Button>
+                    <div className="flex gap-2 mt-4">
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => navigate(`/events/${event.id}`)}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        Ver detalles
+                      </Button>
+                      <Button variant="outline" className="flex-1">
+                        Ver inscritos
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -484,6 +641,7 @@ export default function Events() {
                     <TableHead>Lugar</TableHead>
                     <TableHead>Precio</TableHead>
                     <TableHead>Inscritos</TableHead>
+                    <TableHead>Cupo</TableHead>
                     <TableHead>Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -491,7 +649,7 @@ export default function Events() {
                   {events.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={6}
+                        colSpan={7}
                         className="text-center py-8 text-muted-foreground"
                       >
                         No hay eventos creados
@@ -511,12 +669,37 @@ export default function Events() {
                           {event.price === 0 ? (
                             <span className="text-green-600">Gratis</span>
                           ) : (
-                            `$${event.price.toLocaleString()}`
+                            `$${event.price.toLocaleString()} MXN`
                           )}
                         </TableCell>
                         <TableCell>{event.registered_clients}</TableCell>
                         <TableCell>
-                          <Button variant="ghost" size="sm">
+                          {event.max_capacity ? (
+                            <span
+                              className={
+                                event.registered_clients >= event.max_capacity
+                                  ? "text-red-600 font-semibold"
+                                  : event.registered_clients >=
+                                    event.max_capacity * 0.8
+                                  ? "text-orange-600"
+                                  : "text-muted-foreground"
+                              }
+                            >
+                              {event.registered_clients} / {event.max_capacity}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">
+                              Sin límite
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditEvent(event)}
+                          >
+                            <Edit className="h-4 w-4 mr-1" />
                             Editar
                           </Button>
                         </TableCell>

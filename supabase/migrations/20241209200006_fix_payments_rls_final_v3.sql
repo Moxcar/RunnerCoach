@@ -47,3 +47,10 @@ CREATE POLICY "Clients can insert own payments"
 -- 2. El coach_id que se está insertando no coincide con el del cliente
 -- 3. Hay un problema con la autenticación (auth.uid() es null)
 
+
+
+
+
+
+
+

@@ -21,3 +21,10 @@ CREATE POLICY "Clients can insert own registrations"
     )
   );
 
+
+
+
+
+
+
+

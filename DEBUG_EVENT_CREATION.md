@@ -70,3 +70,10 @@ WHERE tablename = 'events' AND cmd = 'INSERT';
 INSERT INTO events (coach_id, name, date, price)
 VALUES (auth.uid(), 'Evento de prueba', CURRENT_DATE, 0);
 ```
+
+
+
+
+
+
+

@@ -11,6 +11,7 @@ import {
   LogOut,
   Menu,
   X,
+  Package,
 } from 'lucide-react'
 import { useState } from 'react'
 import logo from '/logo.svg'
@@ -25,6 +26,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { signOut, user, role } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
+  const adminMenuItems = [
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard' },
+    { icon: Users, label: 'Coaches', path: '/admin/coaches' },
+    { icon: Users, label: 'Clientes', path: '/admin/clients' },
+    { icon: CreditCard, label: 'Pagos', path: '/admin/payments' },
+    { icon: Calendar, label: 'Eventos', path: '/admin/events' },
+    { icon: Package, label: 'Planes', path: '/admin/plans' },
+    { icon: Settings, label: 'Configuración', path: '/settings' },
+  ]
+
   const coachMenuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
     { icon: Users, label: 'Clientes', path: '/clients' },
@@ -37,9 +48,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { icon: LayoutDashboard, label: 'Dashboard', path: '/client/dashboard' },
     { icon: CreditCard, label: 'Mis Pagos', path: '/client/payments' },
     { icon: Calendar, label: 'Eventos', path: '/client/events' },
+    { icon: Package, label: 'Planes', path: '/client/plans' },
   ]
 
-  const menuItems = role === 'coach' ? coachMenuItems : clientMenuItems
+  const menuItems =
+    role === 'admin'
+      ? adminMenuItems
+      : role === 'coach'
+        ? coachMenuItems
+        : clientMenuItems
 
   const handleSignOut = async () => {
     await signOut()

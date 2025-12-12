@@ -143,3 +143,10 @@ npm run db:status
 - Una vez aplicada, una migración no se vuelve a ejecutar
 - Siempre prueba las migraciones en un entorno de desarrollo primero
 - Las migraciones son idempotentes (usan `IF NOT EXISTS` cuando es posible)
+
+
+
+
+
+
+

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ import {
   CheckCircle,
   CreditCard,
   FileText,
+  Eye,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -48,6 +50,7 @@ interface Event {
 
 export default function ClientEvents() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [events, setEvents] = useState<Event[]>([]);
   const [coachId, setCoachId] = useState<string | null>(null);
   const [clientId, setClientId] = useState<string | null>(null);
@@ -105,14 +108,32 @@ export default function ClientEvents() {
 
       if (eventsError) throw eventsError;
 
-      // Cargar inscripciones del usuario
-      const { data: registrations } = await supabase
+      // Cargar inscripciones del usuario (por user_id o por email)
+      const { data: registrationsByUser } = await supabase
         .from("event_registrations")
         .select("event_id")
         .eq("user_id", user.id);
 
+      // También buscar registros por email
+      let registrationsByEmail: any[] = [];
+      if (user.email) {
+        const { data: emailRegistrations } = await supabase
+          .from("event_registrations")
+          .select("event_id")
+          .eq("email", user.email.toLowerCase())
+          .is("user_id", null);
+
+        registrationsByEmail = emailRegistrations || [];
+      }
+
+      // Combinar ambos tipos de registros
+      const allRegistrations = [
+        ...(registrationsByUser || []),
+        ...registrationsByEmail,
+      ];
+
       const registeredEventIds = new Set(
-        registrations?.map((r) => r.event_id) || []
+        allRegistrations.map((r) => r.event_id)
       );
 
       // Combinar datos
@@ -435,13 +456,21 @@ export default function ClientEvents() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {upcomingEvents.map((event) => (
                 <Card key={event.id}>
-                  {event.image_url && (
-                    <div className="w-full h-48 overflow-hidden rounded-t-lg">
+                  {event.image_url ? (
+                    <div className="w-full h-48 overflow-hidden rounded-t-lg bg-gray-200">
                       <img
                         src={event.image_url}
                         alt={event.name}
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = "none";
+                        }}
                       />
+                    </div>
+                  ) : (
+                    <div className="w-full h-48 bg-gradient-to-br from-[#e9540d]/10 to-[#b07a1e]/10 flex items-center justify-center rounded-t-lg">
+                      <Calendar className="h-12 w-12 text-[#e9540d]/30" />
                     </div>
                   )}
                   <CardHeader>
@@ -472,33 +501,46 @@ export default function ClientEvents() {
                         {event.price === 0 ? (
                           <span className="text-green-600">Gratis</span>
                         ) : (
-                          `$${event.price.toLocaleString()}`
+                          `$${event.price.toLocaleString()} MXN`
                         )}
                       </span>
                     </div>
-                    {event.isRegistered ? (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-green-600">
-                          <CheckCircle className="h-4 w-4" />
-                          <span className="text-sm font-medium">Inscrito</span>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full"
-                          onClick={() => handleUnregister(event.id)}
-                        >
-                          Cancelar inscripción
-                        </Button>
-                      </div>
-                    ) : (
+                    <div className="space-y-2">
                       <Button
+                        variant="outline"
+                        size="sm"
                         className="w-full"
-                        onClick={() => handleRegister(event)}
+                        onClick={() => navigate(`/events/${event.id}`)}
                       >
-                        {event.price === 0 ? "Inscribirse" : "Registrarse"}
+                        <Eye className="h-4 w-4 mr-2" />
+                        Ver detalles
                       </Button>
-                    )}
+                      {event.isRegistered ? (
+                        <>
+                          <div className="flex items-center gap-2 text-green-600">
+                            <CheckCircle className="h-4 w-4" />
+                            <span className="text-sm font-medium">
+                              Inscrito
+                            </span>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                            onClick={() => handleUnregister(event.id)}
+                          >
+                            Cancelar inscripción
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          className="w-full"
+                          onClick={() => handleRegister(event)}
+                        >
+                          {event.price === 0 ? "Inscribirse" : "Registrarse"}
+                        </Button>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -516,13 +558,21 @@ export default function ClientEvents() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {pastEvents.map((event) => (
                 <Card key={event.id} className="opacity-60">
-                  {event.image_url && (
-                    <div className="w-full h-48 overflow-hidden rounded-t-lg">
+                  {event.image_url ? (
+                    <div className="w-full h-48 overflow-hidden rounded-t-lg bg-gray-200">
                       <img
                         src={event.image_url}
                         alt={event.name}
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = "none";
+                        }}
                       />
+                    </div>
+                  ) : (
+                    <div className="w-full h-48 bg-gradient-to-br from-[#e9540d]/10 to-[#b07a1e]/10 flex items-center justify-center rounded-t-lg">
+                      <Calendar className="h-12 w-12 text-[#e9540d]/30" />
                     </div>
                   )}
                   <CardHeader>
@@ -583,7 +633,7 @@ export default function ClientEvents() {
                     <strong>{selectedEvent.name}</strong>
                     <br />
                     Precio:{" "}
-                    <strong>${selectedEvent.price.toLocaleString()}</strong>
+                    <strong>${selectedEvent.price.toLocaleString()} MXN</strong>
                   </>
                 )}
               </DialogDescription>

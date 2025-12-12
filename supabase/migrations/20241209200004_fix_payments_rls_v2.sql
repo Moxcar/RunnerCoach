@@ -35,3 +35,10 @@ CREATE POLICY "Clients can insert own payments"
     check_client_coach_match(auth.uid(), payments.coach_id)
   );
 
+
+
+
+
+
+
+

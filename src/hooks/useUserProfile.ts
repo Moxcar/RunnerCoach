@@ -27,8 +27,20 @@ export const useUserProfile = (userId: string | null) => {
       }
 
       if (data) {
-        setProfile(data);
-        return data;
+        // Mapear rol "user" de la base de datos a "client" en el frontend
+        let mappedRole: UserProfile["role"] = null;
+        if (data.role === "user") {
+          mappedRole = "client";
+        } else if (data.role === "admin" || data.role === "coach" || data.role === "client") {
+          mappedRole = data.role;
+        }
+        
+        const mappedProfile: UserProfile = {
+          ...data,
+          role: mappedRole,
+        };
+        setProfile(mappedProfile);
+        return mappedProfile;
       }
 
       return null;
@@ -50,4 +62,8 @@ export const useRefreshProfile = () => {
     }
   };
 };
+
+
+
+
 

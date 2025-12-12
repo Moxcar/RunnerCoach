@@ -1,5 +1,9 @@
 import { createContext, useContext, useEffect, useRef } from "react";
-import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useAuthStore, initializeAuth, UserProfile } from "@/stores/authStore";
 import { useUserProfile, useRefreshProfile } from "@/hooks/useUserProfile";
 import { supabase } from "@/lib/supabase";
@@ -8,14 +12,14 @@ import { User } from "@supabase/supabase-js";
 interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
-  role: "coach" | "client" | null;
+  role: "admin" | "coach" | "client" | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (
     email: string,
     password: string,
     name: string,
-    role: "coach" | "client"
+    role: "admin" | "coach" | "user"
   ) => Promise<void>;
   signOut: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
@@ -38,7 +42,11 @@ const queryClient = new QueryClient({
 function AuthProviderInner({ children }: { children: React.ReactNode }) {
   const { user, profile, setUser, setProfile, initialized, setInitialized } =
     useAuthStore();
-  const { data: profileData, isLoading: profileLoading, refetch } = useUserProfile(user?.id || null);
+  const {
+    data: profileData,
+    isLoading: profileLoading,
+    refetch,
+  } = useUserProfile(user?.id || null);
   const refreshProfile = useRefreshProfile();
   const queryClient = useQueryClient();
   const subscriptionRef = useRef<any>(null);
@@ -102,7 +110,7 @@ function AuthProviderInner({ children }: { children: React.ReactNode }) {
     email: string,
     password: string,
     name: string,
-    role: "coach" | "client"
+    role: "admin" | "coach" | "user"
   ) => {
     const { error } = await supabase.auth.signUp({
       email,
@@ -139,13 +147,14 @@ function AuthProviderInner({ children }: { children: React.ReactNode }) {
   };
 
   const loading = !initialized || (!!user && profileLoading);
+  const currentProfile = profile || profileData || null;
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        profile: profile || profileData || null,
-        role: (profile || profileData)?.role ?? null,
+        profile: currentProfile,
+        role: currentProfile?.role ?? null,
         loading,
         signIn,
         signUp,

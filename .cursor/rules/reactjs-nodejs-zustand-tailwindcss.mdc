@@ -1,0 +1,125 @@
+---
+alwaysApply: true
+---
+
+# React + Tailwind Development Prompt
+
+You are an expert in **JavaScript**, **React**, **Node.js**, **Zustand**, and **Tailwind CSS**.
+
+## Code Style and Structure
+
+- Write concise, technical JavaScript code following **Standard.js** rules.
+- Use **functional** and **declarative** programming patterns; avoid classes.
+- Prefer **iteration and modularization** over code duplication.
+- Use **descriptive variable names** with auxiliary verbs (e.g., `isLoading`, `hasError`).
+- Structure files with **exported component**, subcomponents, helpers, and static content.
+
+## Standard.js Rules
+
+- 2 space indentation
+- Single quotes except to avoid escaping
+- No semicolons (unless required)
+- No unused variables
+- Space after keywords
+- Space before function parentheses
+- Always use `===`
+- Infix operators spaced
+- Commas followed by a space
+- Keep `else` statements on the same line
+- Curly braces for multi-line `if` statements
+- Always handle the `err` parameter
+- `camelCase` for variables/functions, `PascalCase` for components
+
+## Naming Conventions
+
+- Use lowercase with dashes for directories (e.g., `components/auth-wizard`).
+- Favor **named exports** for components.
+
+## React Best Practices
+
+- Use **functional components** with `prop-types` for type checking.
+- Define components with the `function` keyword.
+- Use hooks properly: `useState`, `useEffect`, `useContext`, `useReducer`, `useMemo`, `useCallback`.
+- Follow the **Rules of Hooks**.
+- Extract reusable logic into **custom hooks**.
+- Use `React.memo` for memoization.
+- Use `useCallback` for functions passed as props.
+- Use `useMemo` for expensive computations.
+- Avoid inline function definitions in render.
+- Prefer **composition** over inheritance.
+- Support `children` and render props for flexibility.
+- Use `React.lazy` and `Suspense` for **code splitting**.
+- Use `refs` sparingly.
+- Prefer **controlled** components.
+- Implement **error boundaries**.
+- Use cleanup functions in `useEffect`.
+- Use short-circuit evaluation and ternaries for conditional rendering.
+
+## State Management
+
+- Use **Zustand** for global state.
+- **Lift state up** when needed.
+- Use **Context API** for intermediate state sharing.
+
+## UI and Styling
+
+- Use **Tailwind CSS** for utility-first styling.
+- Implement **responsive design** with a mobile-first approach.
+- Combine Tailwind utilities with **CSS Modules** for complex styles.
+- Keep low CSS specificity and modular, scoped styles.
+
+## Performance Optimization
+
+- Minimize `useEffect`, `useState`, and client-only logic.
+- Use **Suspense** with fallbacks for lazy components.
+- Apply **dynamic imports** for non-critical components.
+- Optimize images (WebP, proper sizes, lazy loading).
+- Use **route-based code splitting**.
+- Remove unused CSS in production (e.g., PurgeCSS).
+
+## Forms and Validation
+
+- Use **controlled components** for form inputs.
+- Implement both **client-side** and **server-side** validation.
+- Use **react-hook-form** for complex forms.
+- Use **Zod** or **Joi** for schema validation.
+
+## Error Handling
+
+- Handle **errors and edge cases** first.
+- Use **early returns** to reduce nesting.
+- Apply **guard clauses** for invalid states.
+- Provide **user-friendly error messages**.
+- Log errors properly.
+- Model expected errors as **return values**.
+
+## Accessibility (a11y)
+
+- Use **semantic HTML**.
+- Add **proper ARIA attributes**.
+- Ensure **keyboard navigation** support.
+
+## Testing
+
+- Write **unit tests** with Jest + React Testing Library.
+- Write **integration tests** for critical flows.
+- Use **snapshot testing** only when useful.
+
+## Security
+
+- Sanitize user inputs to prevent **XSS**.
+- Use `dangerouslySetInnerHTML` only with sanitized content.
+
+## Internationalization (i18n)
+
+- Use libraries like **react-intl** for translations and locale management.
+
+## Key Conventions
+
+- Use **nuqs** for URL search parameter state.
+- Optimize **Web Vitals** (LCP, CLS, FID).
+- Balance **Tailwind utilities** with CSS Modules for complex styles.
+
+### Summary
+
+You are building fast, modular, and accessible **React applications** using **Tailwind CSS** and **Zustand**, with an emphasis on **clean structure**, **performance**, and **developer experience**.

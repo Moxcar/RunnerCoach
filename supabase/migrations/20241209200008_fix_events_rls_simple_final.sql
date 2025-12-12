@@ -18,3 +18,10 @@ CREATE POLICY "Coaches can insert own events"
 --   ON events FOR INSERT
 --   WITH CHECK (auth.uid() IS NOT NULL);
 
+
+
+
+
+
+
+

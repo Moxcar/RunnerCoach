@@ -1,139 +1,175 @@
-import { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
-import DashboardLayout from '@/components/DashboardLayout'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { DollarSign, Clock, Calendar, CheckCircle } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/contexts/AuthContext'
-import { format } from 'date-fns'
-import { es } from 'date-fns/locale'
-import { Link } from 'react-router-dom'
-import { Button } from '@/components/ui/button'
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import DashboardLayout from "@/components/DashboardLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DollarSign, Clock, Calendar, CheckCircle } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 
 interface Payment {
-  id: string
-  amount: number
-  date: string
-  status: 'completed' | 'pending' | 'failed'
-  method: 'stripe' | 'manual' | 'cash'
+  id: string;
+  amount: number;
+  date: string;
+  status: "completed" | "pending" | "failed";
+  method: "stripe" | "manual" | "cash";
 }
 
 interface Event {
-  id: string
-  name: string
-  date: string
-  location: string | null
-  image_url: string | null
-  price: number
+  id: string;
+  name: string;
+  date: string;
+  location: string | null;
+  image_url: string | null;
+  price: number;
 }
 
 export default function ClientDashboard() {
-  const { user } = useAuth()
+  const { user } = useAuth();
   const [stats, setStats] = useState({
     totalPaid: 0,
     pendingPayments: 0,
     upcomingEvents: 0,
     completedPayments: 0,
-  })
-  const [recentPayments, setRecentPayments] = useState<Payment[]>([])
-  const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([])
+  });
+  const [recentPayments, setRecentPayments] = useState<Payment[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([]);
 
   useEffect(() => {
     if (user) {
-      loadDashboardData()
+      loadDashboardData();
     }
-  }, [user])
+  }, [user]);
 
   const loadDashboardData = async () => {
-    if (!user) return
+    if (!user) return;
 
     try {
       // Obtener cliente asociado
       const { data: clientData } = await supabase
-        .from('clients')
-        .select('id, coach_id')
-        .eq('user_id', user.id)
-        .single()
+        .from("clients")
+        .select("id, coach_id")
+        .eq("user_id", user.id)
+        .single();
 
       if (!clientData) {
-        console.log('No se encontró registro de cliente')
-        return
+        console.log("No se encontró registro de cliente");
+        return;
       }
 
       // Cargar pagos
       const { data: payments } = await supabase
-        .from('payments')
-        .select('*')
-        .eq('client_user_id', user.id)
-        .order('date', { ascending: false })
-        .limit(5)
+        .from("payments")
+        .select("*")
+        .eq("client_user_id", user.id)
+        .order("date", { ascending: false })
+        .limit(5);
 
       if (payments) {
-        setRecentPayments(payments as Payment[])
+        setRecentPayments(payments as Payment[]);
         const totalPaid = payments
-          .filter((p: any) => p.status === 'completed')
-          .reduce((sum: number, p: any) => sum + parseFloat(p.amount), 0)
-        const pending = payments.filter((p: any) => p.status === 'pending').length
-        const completed = payments.filter((p: any) => p.status === 'completed').length
+          .filter((p: any) => p.status === "completed")
+          .reduce((sum: number, p: any) => sum + parseFloat(p.amount), 0);
+        const pending = payments.filter(
+          (p: any) => p.status === "pending"
+        ).length;
+        const completed = payments.filter(
+          (p: any) => p.status === "completed"
+        ).length;
 
         setStats((prev) => ({
           ...prev,
           totalPaid,
           pendingPayments: pending,
           completedPayments: completed,
-        }))
+        }));
       }
 
-      // Cargar eventos inscritos
-      const { data: registrations } = await supabase
-        .from('event_registrations')
-        .select('event_id, events(*)')
-        .eq('user_id', user.id)
+      // Cargar eventos inscritos (por user_id o por email)
+      const { data: registrationsByUser } = await supabase
+        .from("event_registrations")
+        .select("event_id, events(*)")
+        .eq("user_id", user.id);
 
-      if (registrations) {
-        const events = registrations
+      // También buscar registros por email si el usuario tiene email
+      let registrationsByEmail: any[] = [];
+      if (user.email) {
+        const { data: emailRegistrations } = await supabase
+          .from("event_registrations")
+          .select("event_id, events(*)")
+          .eq("email", user.email.toLowerCase())
+          .is("user_id", null);
+
+        registrationsByEmail = emailRegistrations || [];
+      }
+
+      // Combinar ambos tipos de registros
+      const allRegistrations = [
+        ...(registrationsByUser || []),
+        ...registrationsByEmail,
+      ];
+
+      // Eliminar duplicados por event_id
+      const uniqueRegistrations = allRegistrations.reduce(
+        (acc: any[], reg: any) => {
+          if (!acc.find((r: any) => r.event_id === reg.event_id)) {
+            acc.push(reg);
+          }
+          return acc;
+        },
+        []
+      );
+
+      if (uniqueRegistrations.length > 0) {
+        const events = uniqueRegistrations
           .map((r: any) => r.events)
-          .filter((e: any) => new Date(e.date) >= new Date())
-          .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
-          .slice(0, 3)
+          .filter((e: any) => e && new Date(e.date) >= new Date())
+          .sort(
+            (a: any, b: any) =>
+              new Date(a.date).getTime() - new Date(b.date).getTime()
+          )
+          .slice(0, 3);
 
-        setUpcomingEvents(events)
+        setUpcomingEvents(events);
         setStats((prev) => ({
           ...prev,
           upcomingEvents: events.length,
-        }))
+        }));
       }
     } catch (error) {
-      console.error('Error loading dashboard data:', error)
+      console.error("Error loading dashboard data:", error);
     }
-  }
+  };
 
   const statCards = [
     {
-      title: 'Total pagado',
+      title: "Total pagado",
       value: `$${stats.totalPaid.toLocaleString()}`,
       icon: DollarSign,
-      color: 'text-green-600',
+      color: "text-green-600",
     },
     {
-      title: 'Pagos pendientes',
+      title: "Pagos pendientes",
       value: stats.pendingPayments,
       icon: Clock,
-      color: 'text-orange-600',
+      color: "text-orange-600",
     },
     {
-      title: 'Próximos eventos',
+      title: "Próximos eventos",
       value: stats.upcomingEvents,
       icon: Calendar,
-      color: 'text-purple-600',
+      color: "text-purple-600",
     },
     {
-      title: 'Pagos completados',
+      title: "Pagos completados",
       value: stats.completedPayments,
       icon: CheckCircle,
-      color: 'text-blue-600',
+      color: "text-blue-600",
     },
-  ]
+  ];
 
   return (
     <DashboardLayout>
@@ -144,7 +180,7 @@ export default function ClientDashboard() {
           className="grid gap-4 md:grid-cols-2 lg:grid-cols-4"
         >
           {statCards.map((stat, index) => {
-            const Icon = stat.icon
+            const Icon = stat.icon;
             return (
               <motion.div
                 key={stat.title}
@@ -164,7 +200,7 @@ export default function ClientDashboard() {
                   </CardContent>
                 </Card>
               </motion.div>
-            )
+            );
           })}
         </motion.div>
 
@@ -199,28 +235,31 @@ export default function ClientDashboard() {
                       >
                         <div>
                           <p className="font-medium">
-                            ${parseFloat(payment.amount.toString()).toLocaleString()}
+                            $
+                            {parseFloat(
+                              payment.amount.toString()
+                            ).toLocaleString()}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            {format(new Date(payment.date), 'dd MMM yyyy', {
+                            {format(new Date(payment.date), "dd MMM yyyy", {
                               locale: es,
                             })}
                           </p>
                         </div>
                         <span
                           className={`px-2 py-1 text-xs rounded-full ${
-                            payment.status === 'completed'
-                              ? 'bg-green-100 text-green-800'
-                              : payment.status === 'pending'
-                              ? 'bg-orange-100 text-orange-800'
-                              : 'bg-red-100 text-red-800'
+                            payment.status === "completed"
+                              ? "bg-green-100 text-green-800"
+                              : payment.status === "pending"
+                              ? "bg-orange-100 text-orange-800"
+                              : "bg-red-100 text-red-800"
                           }`}
                         >
-                          {payment.status === 'completed'
-                            ? 'Completado'
-                            : payment.status === 'pending'
-                            ? 'Pendiente'
-                            : 'Fallido'}
+                          {payment.status === "completed"
+                            ? "Completado"
+                            : payment.status === "pending"
+                            ? "Pendiente"
+                            : "Fallido"}
                         </span>
                       </div>
                     ))}
@@ -258,19 +297,28 @@ export default function ClientDashboard() {
                         key={event.id}
                         className="border rounded-lg overflow-hidden"
                       >
-                        {event.image_url && (
-                          <div className="w-full h-32 overflow-hidden">
+                        {event.image_url ? (
+                          <div className="w-full h-32 overflow-hidden bg-gray-200">
                             <img
                               src={event.image_url}
                               alt={event.name}
                               className="w-full h-full object-cover"
+                              onError={(e) => {
+                                // Si la imagen falla, ocultarla y mostrar placeholder
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = "none";
+                              }}
                             />
+                          </div>
+                        ) : (
+                          <div className="w-full h-32 bg-gradient-to-br from-[#e9540d]/10 to-[#b07a1e]/10 flex items-center justify-center">
+                            <Calendar className="h-8 w-8 text-[#e9540d]/30" />
                           </div>
                         )}
                         <div className="p-3">
                           <p className="font-medium">{event.name}</p>
                           <p className="text-sm text-muted-foreground mt-1">
-                            {format(new Date(event.date), 'dd MMM yyyy', {
+                            {format(new Date(event.date), "dd MMM yyyy", {
                               locale: es,
                             })}
                           </p>
@@ -284,7 +332,7 @@ export default function ClientDashboard() {
                               {event.price === 0 ? (
                                 <span className="text-green-600">Gratis</span>
                               ) : (
-                                `$${event.price.toLocaleString()}`
+                                `$${event.price.toLocaleString()} MXN`
                               )}
                             </span>
                           </div>
@@ -299,6 +347,5 @@ export default function ClientDashboard() {
         </div>
       </div>
     </DashboardLayout>
-  )
+  );
 }
-

@@ -16,3 +16,10 @@ CREATE POLICY "Public events are viewable by everyone"
   ON events FOR SELECT
   USING (true);
 
+
+
+
+
+
+
+

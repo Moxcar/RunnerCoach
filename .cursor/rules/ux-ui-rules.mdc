@@ -1,0 +1,40 @@
+---
+alwaysApply: true
+---
+
+# UI/UX Guidelines: RunnerCoach (Landing Page - Runner Focus)
+
+**Core Philosophy:**
+Design an "Editorial Sports Premium" experience focused on the **Runner's Journey**. The goal is to inspire, motivate, and convert. Unlike the dashboard (which is utilitarian), the Landing Page must be **Emotional, Kinetic, and Aspirational**. It should feel like the start of an adventure.
+
+## 1. Visual Aesthetics & Vibe
+
+- **Style:** High-energy editorial. Use large-scale imagery, bold typography, and dynamic layouts that break the rigid grid to suggest movement.
+- **Imagery:** Human-centric. Prioritize high-quality photos of runners in action (trail, sweat, nature, focus). The images should convey the feeling of "achievement" and "freedom."
+- **Texture:** Subtle use of texture (grain, topographic map lines) is allowed to reinforce the "Trail/Outdoor" identity, but keep it modern.
+
+## 2. Color Palette & Emotional Usage
+
+- **Primary Energy (`#e9540d` - Vibrant Orange):** Use as the "Heartbeat" of the page. Use it for primary CTAs ("Find a Coach," "Start Training") and visual accents (lines, shapes) that guide the eye down the page.
+- **Victory Gold (`#b07a1e` - Gold/Bronze):** Use for "Social Proof" (testimonials, success stories, runner tiers) and value propositions. It signals quality results.
+- **Contrast:** Use dark sections (Dark Mode aesthetic) for immersive storytelling areas, contrasting with clean light sections for information.
+
+## 3. Typography & Voice
+
+- **Headlines:** Massive, bold, and impactful (Sans-serif). They should feel like shouted encouragement.
+- **Body Text:** Clean and legible, but subservient to the headlines.
+- **Tone:** Motivational but grounded. Use verbs of action: "Conquer," "Improve," "Reach," "Discover."
+
+## 4. Layout & Motion (The "Runner's Flow")
+
+- **Scroll Experience:** The page should feel like a run—rhythmic and flowing. Use scroll-triggered animations (fade-ups, parallax on images) to maintain engagement.
+- **Asymmetry:** Use offset layouts for text and images to create dynamic tension (avoid boring 50/50 splits everywhere).
+- **CTA Placement:** Make the "Call to Action" persistent or frequently accessible. The path to "Getting a Coach" must be zero-friction.
+
+## 5. Key Sections to Highlight
+
+- **Hero Section:** Immersive full-screen visual. Value prop: "Your Trail, Your Coach, Your Best Time."
+- **Benefits:** Focus on the result (Better times, injury prevention) not the feature (calendar management).
+- **Social Proof:** Highlight coaches and community.
+
+**Strictly Avoid:** Corporate/Generic stock photos (people shaking hands), dense tables of data (save that for the app), tiny text, and static/boring layouts. This is about **Passion**, not Administration.

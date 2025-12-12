@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 /**
- * Script alternativo para obtener credenciales usando la API REST de Supabase
- * Útil cuando psql no está disponible o hay problemas de conexión
+ * Script para obtener credenciales usando la API REST de Supabase
+ * Útil cuando psql no está disponible o hay problemas de conexión (como en WSL)
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -42,60 +42,99 @@ function loadEnv() {
 
 const env = loadEnv();
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY =
-  process.env.VITE_SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY;
+const SUPABASE_SERVICE_ROLE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+if (!SUPABASE_URL) {
+  console.error("❌ Error: VITE_SUPABASE_URL debe estar en .env");
+  process.exit(1);
+}
+
+if (!SUPABASE_SERVICE_ROLE_KEY) {
+  console.error("❌ Error: SUPABASE_SERVICE_ROLE_KEY debe estar en .env");
   console.error(
-    "❌ Error: VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY deben estar en .env"
+    "   Obtén la service_role key desde: https://app.supabase.com/project/[tu-proyecto]/settings/api"
   );
   process.exit(1);
 }
 
 async function getCredentials() {
-  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // Usar service_role_key para tener acceso completo a auth.users
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
 
   try {
-    // Obtener coach
-    const { data: coachData, error: coachError } = await supabase
+    // Obtener usuarios
+    const { data: coachUsers, error: coachError } =
+      await supabase.auth.admin.listUsers();
+
+    if (coachError) {
+      console.error("❌ Error obteniendo usuarios:", coachError.message);
+      process.exit(1);
+    }
+
+    // Obtener perfiles de usuario para filtrar por rol
+    const { data: profiles, error: profilesError } = await supabase
       .from("user_profiles")
-      .select("id, email:auth.users(email)")
-      .eq("role", "coach")
-      .limit(1)
-      .single();
+      .select("id, role");
 
-    // Método alternativo: usar RPC o consulta directa
-    // Como no podemos hacer JOIN fácilmente, usamos una función SQL
-    const { data: coachEmail, error: coachErr } = await supabase.rpc(
-      "get_coach_email"
-    );
+    if (profilesError) {
+      console.error("❌ Error obteniendo perfiles:", profilesError.message);
+      process.exit(1);
+    }
 
-    // Método más directo: consultar auth.users directamente (requiere service_role)
-    // Por ahora, retornamos instrucciones
+    // Crear un mapa de id -> role
+    const roleMap = {};
+    if (profiles) {
+      profiles.forEach((profile) => {
+        roleMap[profile.id] = profile.role;
+      });
+    }
 
-    console.log(
-      "📧 Para obtener credenciales, ejecuta en Supabase SQL Editor:"
-    );
-    console.log("");
-    console.log("SELECT");
-    console.log("  'COACH' as tipo,");
-    console.log("  u.email,");
-    console.log("  'password123' as password");
-    console.log("FROM auth.users u");
-    console.log("JOIN user_profiles up ON u.id = up.id");
-    console.log("WHERE up.role = 'coach'");
-    console.log("LIMIT 1;");
-    console.log("");
-    console.log("SELECT");
-    console.log("  'CLIENT' as tipo,");
-    console.log("  u.email,");
-    console.log("  'password123' as password");
-    console.log("FROM auth.users u");
-    console.log("JOIN user_profiles up ON u.id = up.id");
-    console.log("WHERE up.role = 'client'");
-    console.log("LIMIT 1;");
+    // Buscar admin
+    let adminEmail = null;
+    for (const user of coachUsers.users || []) {
+      if (roleMap[user.id] === "admin") {
+        adminEmail = user.email;
+        break;
+      }
+    }
+
+    // Buscar usuario
+    let userEmail = null;
+    for (const user of coachUsers.users || []) {
+      if (roleMap[user.id] === "user") {
+        userEmail = user.email;
+        break;
+      }
+    }
+
+    // Imprimir resultados en formato que el script bash pueda parsear
+    if (adminEmail) {
+      console.log(`ADMIN_EMAIL=${adminEmail}`);
+    } else {
+      console.error("❌ No se encontró ningún admin en la base de datos");
+    }
+
+    if (userEmail) {
+      console.log(`USER_EMAIL=${userEmail}`);
+    } else {
+      console.error("❌ No se encontró ningún usuario en la base de datos");
+    }
+
+    // Retornar código de salida apropiado
+    if (adminEmail && userEmail) {
+      process.exit(0);
+    } else {
+      process.exit(1);
+    }
   } catch (error) {
-    console.error("Error:", error.message);
+    console.error("❌ Error:", error.message);
+    process.exit(1);
   }
 }
 
