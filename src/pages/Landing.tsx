@@ -323,68 +323,6 @@ export default function Landing() {
               </defs>
             </svg>
 
-            {/* Runner silhouette - in action, climbing */}
-            <motion.div
-              className="absolute bottom-[18%] right-[8%] z-20 hidden lg:block"
-              initial={{ opacity: 0, x: 50, y: 20 }}
-              animate={{ opacity: 1, x: 0, y: 0 }}
-              transition={{ duration: 1, delay: 0.5 }}
-            >
-              <svg
-                width="180"
-                height="280"
-                viewBox="0 0 180 280"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                {/* Runner body - dynamic running pose */}
-                <g opacity="0.4">
-                  {/* Head */}
-                  <circle
-                    cx="90"
-                    cy="60"
-                    r="14"
-                    fill="rgba(233, 84, 13, 0.4)"
-                    stroke="rgba(233, 84, 13, 0.6)"
-                    strokeWidth="2"
-                  />
-
-                  {/* Torso */}
-                  <path
-                    d="M90,74 L90,140"
-                    stroke="rgba(233, 84, 13, 0.5)"
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                  />
-
-                  {/* Arms - running motion */}
-                  <path
-                    d="M90,90 L70,110 M90,90 L110,100"
-                    stroke="rgba(233, 84, 13, 0.5)"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                  />
-
-                  {/* Legs - mid-stride */}
-                  <path
-                    d="M90,140 L75,200 M90,140 L105,195 M90,140 L80,240 M90,140 L100,235"
-                    stroke="rgba(233, 84, 13, 0.5)"
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                  />
-
-                  {/* Motion trail effect */}
-                  <path
-                    d="M110,100 Q120,110 130,120"
-                    stroke="rgba(233, 84, 13, 0.2)"
-                    strokeWidth="2"
-                    strokeDasharray="4 4"
-                    fill="none"
-                  />
-                </g>
-              </svg>
-            </motion.div>
-
             {/* Motion lines - suggesting speed, effort, wind */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
               {[...Array(8)].map((_, i) => (
@@ -437,17 +375,6 @@ export default function Landing() {
             className="relative z-30 container mx-auto px-6 text-center"
             style={{ y: heroY, opacity: heroOpacity }}
           >
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-            >
-              <Badge className="mb-8 bg-primary/30 text-primary border-primary/40 px-5 py-2 text-sm font-bold inline-flex items-center gap-2 backdrop-blur-sm">
-                <Flame className="h-4 w-4" />
-                SUDOR. ESFUERZO. PASIÓN.
-              </Badge>
-            </motion.div>
-
             <motion.h1
               className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-9xl font-black text-white leading-[0.9] mb-8 tracking-tighter"
               initial={{ opacity: 0, y: 50 }}
@@ -514,7 +441,6 @@ export default function Landing() {
               {[
                 { value: "2,500+", label: "Runners entrenando" },
                 { value: "150+", label: "Coaches expertos" },
-                { value: "∞", label: "Pasión", symbol: true },
               ].map((stat) => (
                 <div key={stat.label} className="text-center">
                   <p className="text-3xl md:text-4xl font-black text-white drop-shadow-lg leading-none flex items-center justify-center h-[3rem] md:h-[4rem]">
@@ -894,7 +820,7 @@ export default function Landing() {
                                   isPopular ? "text-primary" : "text-gray-900"
                                 }`}
                               >
-                                ${plan.cost.toFixed(0)} MXN
+                                ${plan.cost.toFixed(2)} MXN
                               </span>
                               <span className="text-gray-500">/mes</span>
                             </div>
