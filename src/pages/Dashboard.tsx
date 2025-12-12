@@ -71,12 +71,11 @@ export default function Dashboard() {
       const pendingPaymentsCount =
         payments?.filter((p) => p.status === "pending").length || 0;
 
-      // Obtener eventos próximos del coach
+      // Obtener eventos próximos
       const today = new Date().toISOString().split("T")[0];
       const { data: upcomingEventsData, error: eventsError } = await supabase
         .from("events")
         .select("id, name, date, location, image_url, price")
-        .eq("coach_id", user.id)
         .gte("date", today)
         .order("date", { ascending: true })
         .limit(5);

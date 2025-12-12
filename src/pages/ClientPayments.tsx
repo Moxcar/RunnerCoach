@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -11,30 +10,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Plus, CreditCard, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
-import stripePromise from "@/lib/stripe";
 
 interface Payment {
   id: string;
@@ -42,313 +21,266 @@ interface Payment {
   date: string;
   status: "completed" | "pending" | "failed";
   method: "stripe" | "manual" | "cash";
-  coach_id: string;
+  coach_id: string | null;
+  email: string | null;
+  event?: {
+    id: string;
+    name: string;
+    date: string;
+  } | null;
+  paymentType?: "plan" | "event" | "general";
+  planName?: string;
+}
+
+interface ClientPlan {
+  plan_id: string | null;
+  plan: {
+    id: string;
+    name: string;
+    cost: number;
+  } | null;
 }
 
 export default function ClientPayments() {
   const { user } = useAuth();
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    amount: "",
-    date: new Date().toISOString().split("T")[0],
-    method: "manual" as Payment["method"],
-  });
-  const [coachId, setCoachId] = useState<string | null>(null);
-  const [receiptFile, setReceiptFile] = useState<File | null>(null);
-  const [uploadingReceipt, setUploadingReceipt] = useState(false);
-  const [processingStripe, setProcessingStripe] = useState(false);
-  const [error, setError] = useState("");
-
-  // Función helper para verificar si Stripe está configurado
-  const isStripeConfigured = () => {
-    const key = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
-    return key && key.trim() !== "";
-  };
+  const [currentPlan, setCurrentPlan] = useState<ClientPlan | null>(null);
+  const [nextPlanPaymentDate, setNextPlanPaymentDate] = useState<Date | null>(
+    null
+  );
 
   useEffect(() => {
     if (user) {
-      loadClientData();
       loadPayments();
+      loadCurrentPlan();
     }
   }, [user]);
-
-  const loadClientData = async () => {
-    if (!user) return;
-
-    try {
-      const { data: client } = await supabase
-        .from("clients")
-        .select("coach_id")
-        .eq("user_id", user.id)
-        .single();
-
-      if (client) {
-        setCoachId(client.coach_id);
-      }
-    } catch (error) {
-      console.error("Error loading client data:", error);
-    }
-  };
 
   const loadPayments = async () => {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
+      // Obtener el plan actual para identificar pagos del plan
+      const { data: clientData } = await supabase
+        .from("clients")
+        .select("plan_id, plans(*)")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const currentPlanCost =
+        clientData?.plans && typeof clientData.plans === "object"
+          ? (clientData.plans as { cost: number }).cost
+          : null;
+
+      // Obtener todos los pagos por user_id o por email (normalizado)
+      const userEmail = user.email?.toLowerCase().trim();
+
+      // Construir la consulta OR correctamente
+      // Si hay email, buscar por ambos; si no, solo por client_user_id
+      const orCondition = userEmail
+        ? `client_user_id.eq.${user.id},email.eq.${userEmail}`
+        : `client_user_id.eq.${user.id}`;
+
+      const { data: paymentsData, error: paymentsError } = await supabase
         .from("payments")
         .select("*")
-        .eq("client_user_id", user.id)
+        .or(orCondition)
         .order("date", { ascending: false });
 
-      if (error) throw error;
-      if (data) {
-        setPayments(data as Payment[]);
+      if (paymentsError) {
+        console.error("Error loading payments:", paymentsError);
+        throw paymentsError;
       }
+
+      console.log("Payments loaded:", paymentsData?.length || 0, "payments");
+
+      if (!paymentsData || paymentsData.length === 0) {
+        setPayments([]);
+        return;
+      }
+
+      // Obtener todos los registros de eventos del usuario para hacer matching más eficiente
+      const userEmailNormalized = user.email?.toLowerCase().trim();
+      const { data: allRegistrations } = await supabase
+        .from("event_registrations")
+        .select(
+          `
+          id,
+          event_id,
+          created_at,
+          user_id,
+          email,
+          events!inner (
+            id,
+            name,
+            date,
+            price
+          )
+        `
+        )
+        .or(
+          `user_id.eq.${user.id}${
+            userEmailNormalized ? `,email.eq.${userEmailNormalized}` : ""
+          }`
+        );
+
+      // Crear un mapa de eventos por precio para búsqueda rápida
+      const eventMap = new Map<number, any[]>();
+      if (allRegistrations) {
+        allRegistrations.forEach((reg: any) => {
+          if (reg.events) {
+            const eventPrice = parseFloat(reg.events.price.toString());
+            if (!eventMap.has(eventPrice)) {
+              eventMap.set(eventPrice, []);
+            }
+            eventMap.get(eventPrice)!.push({
+              ...reg.events,
+              registrationDate: reg.created_at,
+            });
+          }
+        });
+      }
+
+      // Procesar cada pago
+      const paymentsWithInfo = await Promise.all(
+        paymentsData.map(async (payment: any) => {
+          let eventInfo = null;
+          let paymentType: "plan" | "event" | "general" = "general";
+          let planName: string | undefined = undefined;
+
+          // Verificar si es un pago del plan mensual
+          if (
+            currentPlanCost &&
+            Math.abs(parseFloat(payment.amount.toString()) - currentPlanCost) <
+              0.01
+          ) {
+            paymentType = "plan";
+            if (clientData?.plans && typeof clientData.plans === "object") {
+              planName = (clientData.plans as { name: string }).name;
+            }
+          } else {
+            // Buscar evento relacionado
+            const paymentAmount = parseFloat(payment.amount.toString());
+            const paymentDate = new Date(payment.date);
+
+            // Buscar en el mapa de eventos (tolerancia de 0.01 para diferencias de redondeo)
+            let bestMatch: any = null;
+            let bestMatchDiff = Infinity;
+
+            eventMap.forEach((events, eventPrice) => {
+              // Comparar con tolerancia para diferencias de redondeo
+              if (Math.abs(eventPrice - paymentAmount) < 0.01) {
+                events.forEach((event) => {
+                  const regDate = new Date(event.registrationDate);
+                  const diff = Math.abs(
+                    paymentDate.getTime() - regDate.getTime()
+                  );
+                  // Considerar eventos registrados hasta 30 días antes o después del pago
+                  // (para cubrir casos donde el pago se hizo días después del registro)
+                  if (diff < 30 * 24 * 60 * 60 * 1000 && diff < bestMatchDiff) {
+                    bestMatch = event;
+                    bestMatchDiff = diff;
+                  }
+                });
+              }
+            });
+
+            if (bestMatch) {
+              eventInfo = {
+                id: bestMatch.id,
+                name: bestMatch.name,
+                date: bestMatch.date,
+              };
+              paymentType = "event";
+            }
+          }
+
+          return {
+            ...payment,
+            event: eventInfo,
+            paymentType,
+            planName,
+          };
+        })
+      );
+
+      setPayments(paymentsWithInfo as Payment[]);
     } catch (error) {
       console.error("Error loading payments:", error);
     }
   };
 
-  const uploadReceipt = async (file: File, userId: string): Promise<string> => {
-    const fileExt = file.name.split(".").pop();
-    const fileName = `${Date.now()}.${fileExt}`;
-    const filePath = `${userId}/${fileName}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("receipts")
-      .upload(filePath, file, {
-        cacheControl: "3600",
-        upsert: false,
-      });
-
-    if (uploadError) {
-      throw uploadError;
-    }
-
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("receipts").getPublicUrl(filePath);
-
-    return publicUrl;
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validar tipo de archivo
-      const validTypes = [
-        "image/jpeg",
-        "image/png",
-        "image/jpg",
-        "application/pdf",
-      ];
-      if (!validTypes.includes(file.type)) {
-        setError("Por favor, sube un archivo PDF o imagen (JPG, PNG)");
-        return;
-      }
-      // Validar tamaño (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setError("El archivo es demasiado grande. Máximo 5MB");
-        return;
-      }
-      setReceiptFile(file);
-      setError("");
-    }
-  };
-
-  const handleStripePayment = async () => {
-    if (
-      !user ||
-      !coachId ||
-      !formData.amount ||
-      parseFloat(formData.amount) <= 0
-    ) {
-      setError("Por favor, ingresa un monto válido");
-      return;
-    }
-
-    // Verificar si Stripe está configurado
-    if (!isStripeConfigured()) {
-      setError(
-        "Stripe no está configurado. Por favor, configura VITE_STRIPE_PUBLISHABLE_KEY en las variables de entorno. Por ahora, puedes usar la opción de subir comprobante."
-      );
-      return;
-    }
-
-    setError("");
-    setProcessingStripe(true);
+  const loadCurrentPlan = async () => {
+    if (!user) return;
 
     try {
-      // Crear checkout session (necesitarás un endpoint backend para esto)
-      const response = await fetch("/api/create-checkout-session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          amount: parseFloat(formData.amount) * 100, // Convertir a centavos
-          currency: "usd",
-          userId: user.id,
-          email: user.email,
-          coachId: coachId,
-        }),
-      });
-
-      if (!response.ok) {
-        // Intentar obtener más información del error
-        let errorMessage = "Error al procesar el pago con Stripe";
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorData.error || errorMessage;
-        } catch {
-          // Si no se puede parsear el error, usar el status
-          if (response.status === 404) {
-            errorMessage =
-              "El endpoint de Stripe Checkout no está configurado. Por favor, configura el backend o usa la opción de subir comprobante.";
-          } else if (response.status === 500) {
-            errorMessage =
-              "Error en el servidor al procesar el pago. Por favor, intenta más tarde o usa la opción de subir comprobante.";
-          } else {
-            errorMessage = `Error al procesar el pago (${response.status}). Por favor, intenta más tarde o usa la opción de subir comprobante.`;
-          }
-        }
-        setError(errorMessage);
-        setProcessingStripe(false);
-        return;
-      }
-
-      const data = await response.json();
-
-      if (!data.sessionId) {
-        setError(
-          "No se recibió la sesión de Stripe. Por favor, verifica la configuración del backend o usa la opción de subir comprobante."
-        );
-        setProcessingStripe(false);
-        return;
-      }
-
-      const stripe = await stripePromise;
-      if (!stripe) {
-        setError(
-          "No se pudo inicializar Stripe. Por favor, verifica que VITE_STRIPE_PUBLISHABLE_KEY esté configurado correctamente."
-        );
-        setProcessingStripe(false);
-        return;
-      }
-
-      const { error: redirectError } = await stripe.redirectToCheckout({
-        sessionId: data.sessionId,
-      });
-
-      if (redirectError) {
-        setError(
-          `Error al redirigir a Stripe: ${redirectError.message}. Por favor, intenta más tarde o usa la opción de subir comprobante.`
-        );
-        setProcessingStripe(false);
-      }
-      // Si todo está bien, el usuario será redirigido a Stripe
-    } catch (err: any) {
-      let errorMessage = "Error al procesar el pago con Stripe";
-
-      if (err.message) {
-        errorMessage = err.message;
-      } else if (err instanceof TypeError && err.message.includes("fetch")) {
-        errorMessage =
-          "No se pudo conectar con el servidor. Por favor, verifica tu conexión a internet o configura el endpoint de Stripe. Puedes usar la opción de subir comprobante como alternativa.";
-      } else {
-        errorMessage = `Error inesperado: ${err.toString()}`;
-      }
-
-      setError(
-        `${errorMessage} Por favor, intenta más tarde o usa la opción de subir comprobante.`
-      );
-      setProcessingStripe(false);
-    }
-  };
-
-  const handleAddPayment = async () => {
-    if (!user || !coachId) return;
-
-    // Si el método es Stripe, manejar de forma diferente
-    if (formData.method === "stripe") {
-      await handleStripePayment();
-      return;
-    }
-
-    if (!formData.amount || parseFloat(formData.amount) <= 0) {
-      setError("Por favor, ingresa un monto válido");
-      return;
-    }
-
-    setError("");
-    setUploadingReceipt(false);
-
-    try {
-      // Obtener client_id
-      const { data: client } = await supabase
+      // Obtener el plan actual del cliente
+      const { data: clientData, error: clientError } = await supabase
         .from("clients")
-        .select("id")
+        .select("id, plan_id, plans(*)")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
-      if (!client) {
-        setError("No se encontró tu registro de cliente. Contacta a tu coach.");
-        return;
+      if (clientError && clientError.code !== "PGRST116") {
+        throw clientError;
       }
 
-      let receiptUrl: string | null = null;
+      if (clientData && clientData.plan_id && clientData.plans) {
+        const plan = clientData.plans as ClientPlan["plan"];
+        setCurrentPlan({
+          plan_id: clientData.plan_id,
+          plan: plan,
+        });
 
-      // Si hay un comprobante, subirlo
-      if (receiptFile && formData.method === "manual") {
-        setUploadingReceipt(true);
-        try {
-          receiptUrl = await uploadReceipt(receiptFile, user.id);
-        } catch (uploadErr: any) {
-          setError("Error al subir el comprobante: " + uploadErr.message);
-          setUploadingReceipt(false);
-          return;
+        // Buscar el último pago del plan (mismo monto que el costo del plan)
+        const { data: lastPlanPayment } = await supabase
+          .from("payments")
+          .select("date")
+          .eq("client_user_id", user.id)
+          .eq("amount", plan.cost)
+          .order("date", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        // Calcular la próxima fecha de pago
+        let nextPaymentDate: Date;
+        if (lastPlanPayment) {
+          // Si hay un pago previo, agregar 1 mes a esa fecha
+          const lastDate = new Date(lastPlanPayment.date);
+          nextPaymentDate = new Date(
+            lastDate.getFullYear(),
+            lastDate.getMonth() + 1,
+            lastDate.getDate()
+          );
+        } else {
+          // Si no hay pagos previos, usar la fecha actual + 1 mes
+          const today = new Date();
+          nextPaymentDate = new Date(
+            today.getFullYear(),
+            today.getMonth() + 1,
+            today.getDate()
+          );
         }
-        setUploadingReceipt(false);
+
+        // Si la fecha calculada ya pasó, calcular el siguiente mes desde hoy
+        const today = new Date();
+        if (nextPaymentDate <= today) {
+          nextPaymentDate = new Date(
+            today.getFullYear(),
+            today.getMonth() + 1,
+            today.getDate()
+          );
+        }
+
+        setNextPlanPaymentDate(nextPaymentDate);
+      } else {
+        setCurrentPlan(null);
+        setNextPlanPaymentDate(null);
       }
-
-      const { error } = await supabase.from("payments").insert({
-        coach_id: coachId,
-        client_id: client.id,
-        client_user_id: user.id,
-        amount: parseFloat(formData.amount),
-        date: formData.date,
-        status: "pending",
-        method: formData.method,
-        receipt_url: receiptUrl,
-      });
-
-      if (error) throw error;
-
-      setIsDialogOpen(false);
-      setFormData({
-        amount: "",
-        date: new Date().toISOString().split("T")[0],
-        method: "manual",
-      });
-      setReceiptFile(null);
-      setError("");
-      loadPayments();
-    } catch (error: any) {
-      console.error("Error adding payment:", error);
-      setError("Error al registrar el pago: " + error.message);
-      setUploadingReceipt(false);
+    } catch (error) {
+      console.error("Error loading current plan:", error);
     }
   };
-
-  const pendingAmount = payments
-    .filter((p) => p.status === "pending")
-    .reduce((sum, p) => sum + parseFloat(p.amount.toString()), 0);
-
-  // Calcular siguiente pago (próximo pago pendiente más cercano)
-  const nextPayment = payments
-    .filter((p) => p.status === "pending")
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
 
   const getStatusBadge = (status: Payment["status"]) => {
     const styles = {
@@ -382,216 +314,46 @@ export default function ClientPayments() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold">Mis Pagos</h1>
-            <p className="text-muted-foreground">
-              Gestiona tus pagos y visualiza tu historial
-            </p>
-          </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Registrar pago
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Registrar nuevo pago</DialogTitle>
-                <DialogDescription>
-                  Registra un pago realizado a tu coach
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                {error && (
-                  <div className="bg-destructive/10 text-destructive p-3 rounded-md text-sm">
-                    {error}
-                  </div>
-                )}
-                <div className="space-y-2">
-                  <Label htmlFor="amount">Monto</Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    step="0.01"
-                    value={formData.amount}
-                    onChange={(e) => {
-                      setFormData({ ...formData, amount: e.target.value });
-                      setError("");
-                    }}
-                    placeholder="0.00"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="date">Fecha</Label>
-                  <Input
-                    id="date"
-                    type="date"
-                    value={formData.date}
-                    onChange={(e) =>
-                      setFormData({ ...formData, date: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="method">Método de pago</Label>
-                  <Select
-                    value={formData.method}
-                    onValueChange={(value: Payment["method"]) => {
-                      setFormData({ ...formData, method: value });
-                      setReceiptFile(null);
-                      setError("");
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="stripe">
-                        <div className="flex items-center">
-                          <CreditCard className="h-4 w-4 mr-2" />
-                          Pagar con Stripe
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="manual">
-                        <div className="flex items-center">
-                          <FileText className="h-4 w-4 mr-2" />
-                          Subir comprobante
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="cash">Efectivo</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {formData.method === "manual" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="receipt">
-                      Comprobante de transferencia
-                    </Label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        id="receipt"
-                        type="file"
-                        accept="image/*,.pdf"
-                        onChange={handleFileChange}
-                        className="cursor-pointer"
-                      />
-                      {receiptFile && (
-                        <span className="text-sm text-muted-foreground">
-                          {receiptFile.name}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Formatos aceptados: PDF, JPG, PNG (máx. 5MB)
-                    </p>
-                  </div>
-                )}
-
-                {formData.method === "stripe" && (
-                  <div className="space-y-2">
-                    {!isStripeConfigured() ? (
-                      <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-3 rounded-md text-sm">
-                        <p className="font-medium mb-1">
-                          ⚠️ Stripe no está configurado
-                        </p>
-                        <p>
-                          Para usar pagos con Stripe, configura la variable de
-                          entorno{" "}
-                          <code className="bg-yellow-100 px-1 rounded">
-                            VITE_STRIPE_PUBLISHABLE_KEY
-                          </code>
-                          . Por ahora, puedes usar la opción de subir
-                          comprobante.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="bg-muted/50 p-3 rounded-md text-sm text-muted-foreground">
-                        <p>
-                          Al hacer clic en "Pagar con Stripe", serás redirigido
-                          a Stripe para completar el pago de forma segura.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setIsDialogOpen(false);
-                    setError("");
-                    setReceiptFile(null);
-                  }}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={handleAddPayment}
-                  disabled={
-                    uploadingReceipt ||
-                    processingStripe ||
-                    (formData.method === "stripe" && !isStripeConfigured())
-                  }
-                >
-                  {uploadingReceipt
-                    ? "Subiendo comprobante..."
-                    : processingStripe
-                    ? "Procesando pago..."
-                    : formData.method === "stripe"
-                    ? "Pagar con Stripe"
-                    : "Registrar"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+        <div>
+          <h1 className="text-3xl font-bold">Mis Pagos</h1>
+          <p className="text-muted-foreground">
+            Visualiza tu historial de pagos
+          </p>
         </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="grid gap-4 md:grid-cols-2"
-        >
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium">
-                Siguiente pago
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {nextPayment ? (
-                <div>
-                  <div className="text-2xl font-bold">
-                    ${parseFloat(nextPayment.amount.toString()).toLocaleString()}
-                  </div>
-                  <div className="text-sm text-muted-foreground mt-1">
-                    {format(new Date(nextPayment.date), "dd MMM yyyy", {
-                      locale: es,
-                    })}
+        {/* Próximo pago del plan */}
+        {currentPlan?.plan && nextPlanPaymentDate && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-card">
+              <CardHeader>
+                <CardTitle className="text-lg">Próximo pago del plan</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">
+                      Plan: {currentPlan.plan.name}
+                    </p>
+                    <p className="text-2xl font-bold">
+                      ${currentPlan.plan.cost.toLocaleString()} MXN
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Fecha de pago:{" "}
+                      <span className="font-semibold text-foreground">
+                        {format(nextPlanPaymentDate, "dd MMMM yyyy", {
+                          locale: es,
+                        })}
+                      </span>
+                    </p>
                   </div>
                 </div>
-              ) : (
-                <div className="text-2xl font-bold text-muted-foreground">
-                  No hay pagos pendientes
-                </div>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium">Pendiente</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">
-                ${pendingAmount.toLocaleString()}
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -607,6 +369,7 @@ export default function ClientPayments() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Fecha</TableHead>
+                    <TableHead>Evento</TableHead>
                     <TableHead>Monto</TableHead>
                     <TableHead>Método</TableHead>
                     <TableHead>Estado</TableHead>
@@ -616,7 +379,7 @@ export default function ClientPayments() {
                   {payments.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={4}
+                        colSpan={5}
                         className="text-center text-muted-foreground"
                       >
                         No hay pagos registrados
@@ -629,6 +392,38 @@ export default function ClientPayments() {
                           {format(new Date(payment.date), "dd MMM yyyy", {
                             locale: es,
                           })}
+                        </TableCell>
+                        <TableCell>
+                          {payment.paymentType === "plan" &&
+                          payment.planName ? (
+                            <div>
+                              <div className="font-medium text-primary">
+                                Plan: {payment.planName}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Pago mensual
+                              </div>
+                            </div>
+                          ) : payment.paymentType === "event" &&
+                            payment.event ? (
+                            <div>
+                              <div className="font-medium">
+                                {payment.event.name}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Evento -{" "}
+                                {format(
+                                  new Date(payment.event.date),
+                                  "dd MMM yyyy",
+                                  { locale: es }
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">
+                              Pago general
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell className="font-medium">
                           $

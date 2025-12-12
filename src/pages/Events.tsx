@@ -32,10 +32,16 @@ import {
   Edit,
   Users,
   Eye,
+  CheckCircle,
+  XCircle,
+  Clock,
 } from "lucide-react";
 import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import { getEventUrl } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 interface Event {
   id: string;
@@ -47,6 +53,22 @@ interface Event {
   price: number;
   registered_clients: number;
   max_capacity: number | null;
+  slug?: string | null;
+}
+
+interface EventRegistration {
+  id: string;
+  event_id: string;
+  client_id: string | null;
+  user_id: string | null;
+  email: string | null;
+  status: "pending" | "approved" | "rejected";
+  created_at: string;
+  user_profile?: {
+    id: string;
+    full_name: string | null;
+  } | null;
+  client_email?: string | null;
 }
 
 export default function Events() {
@@ -67,6 +89,11 @@ export default function Events() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [isRegistrationsDialogOpen, setIsRegistrationsDialogOpen] =
+    useState(false);
+  const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
+  const [loadingRegistrations, setLoadingRegistrations] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -81,7 +108,6 @@ export default function Events() {
       const { data: eventsData, error: eventsError } = await supabase
         .from("events")
         .select("*")
-        .eq("coach_id", user.id)
         .order("date", { ascending: true });
 
       if (eventsError) throw eventsError;
@@ -107,11 +133,11 @@ export default function Events() {
     }
   };
 
-  const uploadImage = async (file: File, userId: string): Promise<string> => {
+  const uploadImage = async (file: File): Promise<string> => {
     try {
       const fileExt = file.name.split(".").pop();
       const fileName = `event-${Date.now()}.${fileExt}`;
-      const filePath = `events/${userId}/${fileName}`;
+      const filePath = `events/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from("event-images")
@@ -248,7 +274,7 @@ export default function Events() {
 
       if (imageFile) {
         try {
-          imageUrl = await uploadImage(imageFile, user.id);
+          imageUrl = await uploadImage(imageFile);
         } catch (imageError: any) {
           console.warn(
             "Error al subir imagen, continuando sin imagen:",
@@ -276,8 +302,7 @@ export default function Events() {
         const { error: updateError } = await supabase
           .from("events")
           .update(eventData)
-          .eq("id", editingEvent.id)
-          .eq("coach_id", user.id);
+          .eq("id", editingEvent.id);
 
         if (updateError) {
           console.error("Update error details:", updateError);
@@ -295,10 +320,7 @@ export default function Events() {
         // Insertar nuevo evento
         const { error: insertError } = await supabase
           .from("events")
-          .insert({
-            coach_id: user.id,
-            ...eventData,
-          })
+          .insert(eventData)
           .select();
 
         if (insertError) {
@@ -334,6 +356,166 @@ export default function Events() {
       );
     } finally {
       setUploading(false);
+    }
+  };
+
+  const loadEventRegistrations = async (eventId: string) => {
+    if (!user) return;
+
+    setLoadingRegistrations(true);
+    try {
+      // Obtener registros sin status (se maneja en el frontend)
+      const { data: registrationsData, error: registrationsError } =
+        await supabase
+          .from("event_registrations")
+          .select("id, event_id, client_id, user_id, email, created_at")
+          .eq("event_id", eventId)
+          .order("created_at", { ascending: false });
+
+      if (registrationsError) throw registrationsError;
+
+      // Obtener todos los IDs únicos necesarios
+      const userIds = [
+        ...new Set(
+          (registrationsData || []).map((r: any) => r.user_id).filter(Boolean)
+        ),
+      ];
+      const clientIds = [
+        ...new Set(
+          (registrationsData || []).map((r: any) => r.client_id).filter(Boolean)
+        ),
+      ];
+
+      // Obtener nombres desde user_profiles
+      const userProfileMap = new Map<string, { full_name: string | null }>();
+      if (userIds.length > 0) {
+        const { data: userProfiles } = await supabase
+          .from("user_profiles")
+          .select("id, full_name")
+          .in("id", userIds);
+
+        if (userProfiles) {
+          userProfiles.forEach((profile: any) => {
+            userProfileMap.set(profile.id, {
+              full_name: profile.full_name,
+            });
+          });
+        }
+      }
+
+      // Obtener user_ids y emails desde clients
+      const clientToUserIdMap = new Map<string, string>();
+      const clientEmailMap = new Map<string, string>();
+      if (clientIds.length > 0) {
+        const { data: clients } = await supabase
+          .from("clients")
+          .select("id, user_id, email")
+          .in("id", clientIds);
+
+        if (clients) {
+          clients.forEach((client: any) => {
+            if (client.user_id) {
+              clientToUserIdMap.set(client.id, client.user_id);
+            }
+            if (client.email) {
+              clientEmailMap.set(client.id, client.email);
+            }
+          });
+        }
+      }
+
+      // Obtener nombres de clientes que tienen client_id pero no user_id directo
+      const clientUserIds = Array.from(clientToUserIdMap.values());
+      if (clientUserIds.length > 0) {
+        const { data: clientUserProfiles } = await supabase
+          .from("user_profiles")
+          .select("id, full_name")
+          .in("id", clientUserIds);
+
+        if (clientUserProfiles) {
+          clientUserProfiles.forEach((profile: any) => {
+            if (!userProfileMap.has(profile.id)) {
+              userProfileMap.set(profile.id, {
+                full_name: profile.full_name,
+              });
+            }
+          });
+        }
+      }
+
+      // Formatear los registros
+      const transformedData = (registrationsData || []).map((reg: any) => {
+        let userProfile = null;
+        let clientEmail = null;
+
+        // Obtener nombre desde user_profiles
+        if (reg.user_id && userProfileMap.has(reg.user_id)) {
+          userProfile = userProfileMap.get(reg.user_id)!;
+        } else if (reg.client_id && clientToUserIdMap.has(reg.client_id)) {
+          const userId = clientToUserIdMap.get(reg.client_id)!;
+          if (userProfileMap.has(userId)) {
+            userProfile = userProfileMap.get(userId)!;
+          }
+        }
+
+        // Obtener email desde clients o del registro
+        if (reg.client_id && clientEmailMap.has(reg.client_id)) {
+          clientEmail = clientEmailMap.get(reg.client_id)!;
+        } else if (reg.email) {
+          clientEmail = reg.email;
+        }
+
+        return {
+          id: reg.id,
+          event_id: reg.event_id,
+          client_id: reg.client_id,
+          user_id: reg.user_id,
+          email: reg.email,
+          status: "pending" as const, // Status manejado solo en frontend
+          created_at: reg.created_at,
+          user_profile: userProfile,
+          client_email: clientEmail,
+        };
+      });
+
+      setRegistrations(transformedData);
+    } catch (error: any) {
+      console.error("Error loading registrations:", error);
+      setError(error.message || "Error al cargar las inscripciones");
+    } finally {
+      setLoadingRegistrations(false);
+    }
+  };
+
+  const handleViewRegistrations = (event: Event) => {
+    setSelectedEvent(event);
+    setIsRegistrationsDialogOpen(true);
+    loadEventRegistrations(event.id);
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "approved":
+        return (
+          <Badge className="bg-green-500 text-white">
+            <CheckCircle className="h-3 w-3 mr-1" />
+            Aprobado
+          </Badge>
+        );
+      case "rejected":
+        return (
+          <Badge className="bg-red-500 text-white">
+            <XCircle className="h-3 w-3 mr-1" />
+            Rechazado
+          </Badge>
+        );
+      default:
+        return (
+          <Badge className="bg-yellow-500 text-white">
+            <Clock className="h-3 w-3 mr-1" />
+            Pendiente
+          </Badge>
+        );
     }
   };
 
@@ -519,7 +701,7 @@ export default function Events() {
           </Dialog>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {upcomingEvents.map((event, index) => (
             <motion.div
               key={event.id}
@@ -527,44 +709,66 @@ export default function Events() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
             >
-              <Card>
-                {event.image_url ? (
-                  <div className="w-full h-48 overflow-hidden rounded-t-lg bg-gray-200">
+              <Card className="overflow-hidden">
+                <div className="relative w-full h-48 overflow-hidden bg-gray-900">
+                  {/* Background Image: event image or gradient background */}
+                  {event.image_url ? (
                     <img
                       src={event.image_url}
                       alt={event.name}
-                      className="w-full h-full object-cover"
+                      className="absolute inset-0 w-full h-full object-cover"
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
                         target.style.display = "none";
                       }}
                     />
+                  ) : (
+                    <div
+                      className="absolute inset-0 w-full h-full bg-cover bg-center"
+                      style={{
+                        backgroundImage: `url('/event-background-gradient.png')`,
+                      }}
+                    />
+                  )}
+
+                  {/* Logo SVG: ubyprotrail.svg centered */}
+                  <div className="absolute inset-0 flex items-center justify-center z-10">
+                    <img
+                      src="/ubyprotrail.svg"
+                      alt="UBYPROTRAIL"
+                      className="w-2/3 max-w-xs h-auto opacity-90"
+                    />
                   </div>
-                ) : (
-                  <div className="w-full h-48 bg-gradient-to-br from-[#e9540d]/10 to-[#b07a1e]/10 flex items-center justify-center rounded-t-lg">
-                    <Calendar className="h-12 w-12 text-[#e9540d]/30" />
-                  </div>
-                )}
+
+                  {/* Overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent z-20" />
+                </div>
                 <CardHeader>
-                  <CardTitle>{event.name}</CardTitle>
+                  <CardTitle className="text-lg">{event.name}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Calendar className="h-4 w-4" />
-                    <span>{format(new Date(event.date), "dd MMMM yyyy")}</span>
-                  </div>
-                  {event.location && (
+                  <div className="space-y-2 text-sm">
                     <div className="flex items-center gap-2 text-muted-foreground">
-                      <MapPin className="h-4 w-4" />
-                      <span>{event.location}</span>
+                      <Calendar className="h-4 w-4" />
+                      <span>
+                        {format(new Date(event.date), "dd MMM yyyy", {
+                          locale: es,
+                        })}
+                      </span>
                     </div>
-                  )}
-                  {event.description && (
-                    <p className="text-sm text-muted-foreground">
-                      {event.description}
-                    </p>
-                  )}
-                  <div className="flex items-center justify-between">
+                    {event.location && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <MapPin className="h-4 w-4" />
+                        <span>{event.location}</span>
+                      </div>
+                    )}
+                    {event.description && (
+                      <p className="text-muted-foreground mt-2 line-clamp-2">
+                        {event.description}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t">
                     <span className="text-lg font-semibold">
                       {event.price === 0 ? (
                         <span className="text-green-600">Gratis</span>
@@ -573,7 +777,7 @@ export default function Events() {
                       )}
                     </span>
                   </div>
-                  <div className="pt-4 border-t">
+                  <div className="space-y-2">
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-muted-foreground">
@@ -608,13 +812,18 @@ export default function Events() {
                       <Button
                         variant="outline"
                         className="flex-1"
-                        onClick={() => navigate(`/events/${event.id}`)}
+                        onClick={() => navigate(getEventUrl(event))}
                       >
                         <Eye className="h-4 w-4 mr-2" />
                         Ver detalles
                       </Button>
-                      <Button variant="outline" className="flex-1">
-                        Ver inscritos
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => handleViewRegistrations(event)}
+                      >
+                        <Users className="h-4 w-4 mr-2" />
+                        Ver inscritos ({event.registered_clients})
                       </Button>
                     </div>
                   </div>
@@ -711,6 +920,86 @@ export default function Events() {
             </CardContent>
           </Card>
         </motion.div>
+
+        {/* Diálogo de inscripciones */}
+        <Dialog
+          open={isRegistrationsDialogOpen}
+          onOpenChange={setIsRegistrationsDialogOpen}
+        >
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Inscripciones - {selectedEvent?.name}</DialogTitle>
+              <DialogDescription>
+                Gestiona las inscripciones de tus alumnos a este evento
+              </DialogDescription>
+            </DialogHeader>
+            {loadingRegistrations ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#e9540d]"></div>
+              </div>
+            ) : registrations.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No hay inscripciones para este evento
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Alumno</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Fecha de inscripción</TableHead>
+                      <TableHead>Estatus</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {registrations.map((registration) => {
+                      const clientName =
+                        registration.user_profile?.full_name ||
+                        registration.email ||
+                        "Sin nombre";
+                      const clientEmail =
+                        registration.client_email || registration.email || "";
+
+                      return (
+                        <TableRow key={registration.id}>
+                          <TableCell className="font-medium">
+                            <div className="flex flex-col">
+                              <span>{clientName}</span>
+                              {clientEmail && (
+                                <span className="text-sm text-muted-foreground">
+                                  {clientEmail}
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>{clientEmail || "-"}</TableCell>
+                          <TableCell>
+                            {format(
+                              new Date(registration.created_at),
+                              "dd MMM yyyy"
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {getStatusBadge(registration.status)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setIsRegistrationsDialogOpen(false)}
+              >
+                Cerrar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

@@ -45,7 +45,7 @@ import {
 import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
-import { getAllCoaches } from "@/services/adminService";
+import { getEventUrl } from "@/lib/utils";
 
 interface Event {
   id: string;
@@ -57,15 +57,13 @@ interface Event {
   price: number;
   registered_clients: number;
   max_capacity: number | null;
-  coach_id: string;
-  coach_name: string;
+  slug?: string | null;
 }
 
 export default function AdminEvents() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [events, setEvents] = useState<Event[]>([]);
-  const [coaches, setCoaches] = useState<any[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [formData, setFormData] = useState({
@@ -75,7 +73,6 @@ export default function AdminEvents() {
     description: "",
     price: "0",
     max_capacity: "",
-    coach_id: "",
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -85,7 +82,6 @@ export default function AdminEvents() {
   useEffect(() => {
     if (user) {
       loadEvents();
-      loadCoaches();
     }
   }, [user]);
 
@@ -95,34 +91,48 @@ export default function AdminEvents() {
     try {
       const { data: eventsData, error: eventsError } = await supabase
         .from("events")
-        .select(
-          `
-          *,
-          user_profiles!events_coach_id_fkey (
-            id,
-            full_name
-          )
-        `
-        )
+        .select("*")
         .order("date", { ascending: true });
 
       if (eventsError) throw eventsError;
 
-      // Contar inscripciones por evento
-      const eventsWithCounts = await Promise.all(
-        (eventsData || []).map(async (event: any) => {
-          const { count } = await supabase
-            .from("event_registrations")
-            .select("*", { count: "exact", head: true })
-            .eq("event_id", event.id);
+      if (!eventsData || eventsData.length === 0) {
+        setEvents([]);
+        return;
+      }
 
-          return {
-            ...event,
-            registered_clients: count || 0,
-            coach_name: event.user_profiles?.full_name || "Coach desconocido",
-          };
-        })
-      );
+      // Obtener todos los conteos de registros en una sola consulta usando agregación
+      const eventIds = eventsData.map((e: any) => e.id);
+
+      // Obtener todos los registros de una vez
+      const { data: allRegistrations, error: registrationsError } =
+        await supabase
+          .from("event_registrations")
+          .select("event_id")
+          .in("event_id", eventIds);
+
+      if (registrationsError) {
+        console.error("Error loading registrations:", registrationsError);
+        // Si hay error, mostrar mensaje pero continuar con conteo 0
+        setError(
+          `Error al cargar conteo de inscritos: ${registrationsError.message}`
+        );
+      }
+
+      // Contar registros por evento
+      const registrationCounts = new Map<string, number>();
+      if (allRegistrations && allRegistrations.length > 0) {
+        allRegistrations.forEach((reg: any) => {
+          const currentCount = registrationCounts.get(reg.event_id) || 0;
+          registrationCounts.set(reg.event_id, currentCount + 1);
+        });
+      }
+
+      // Combinar eventos con sus conteos
+      const eventsWithCounts = eventsData.map((event: any) => ({
+        ...event,
+        registered_clients: registrationCounts.get(event.id) || 0,
+      }));
 
       setEvents(eventsWithCounts as Event[]);
     } catch (error) {
@@ -131,22 +141,11 @@ export default function AdminEvents() {
     }
   };
 
-  const loadCoaches = async () => {
-    if (!user) return;
-
-    try {
-      const data = await getAllCoaches();
-      setCoaches(data.filter((c) => c.is_approved));
-    } catch (error) {
-      console.error("Error loading coaches:", error);
-    }
-  };
-
-  const uploadImage = async (file: File, userId: string): Promise<string> => {
+  const uploadImage = async (file: File): Promise<string> => {
     try {
       const fileExt = file.name.split(".").pop();
       const fileName = `event-${Date.now()}.${fileExt}`;
-      const filePath = `events/${userId}/${fileName}`;
+      const filePath = `events/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from("event-images")
@@ -178,7 +177,6 @@ export default function AdminEvents() {
       description: event.description,
       price: event.price.toString(),
       max_capacity: event.max_capacity?.toString() || "",
-      coach_id: event.coach_id,
     });
     setImagePreview(event.image_url);
     setIsDialogOpen(true);
@@ -192,7 +190,6 @@ export default function AdminEvents() {
       description: "",
       price: "0",
       max_capacity: "",
-      coach_id: "",
     });
     setImageFile(null);
     setImagePreview(null);
@@ -211,11 +208,6 @@ export default function AdminEvents() {
       return;
     }
 
-    if (!formData.coach_id) {
-      setError("Debes seleccionar un coach");
-      return;
-    }
-
     try {
       setError("");
       setUploading(true);
@@ -223,11 +215,10 @@ export default function AdminEvents() {
       let imageUrl = imagePreview;
 
       if (imageFile && !imagePreview) {
-        imageUrl = await uploadImage(imageFile, formData.coach_id);
+        imageUrl = await uploadImage(imageFile);
       }
 
       const eventData = {
-        coach_id: formData.coach_id,
         name: formData.name,
         date: formData.date,
         location: formData.location,
@@ -302,9 +293,7 @@ export default function AdminEvents() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Gestión de Eventos</h1>
-            <p className="text-muted-foreground">
-              Crea y gestiona eventos de todos los coaches
-            </p>
+            <p className="text-muted-foreground">Crea y gestiona eventos</p>
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
@@ -330,26 +319,6 @@ export default function AdminEvents() {
                     {error}
                   </div>
                 )}
-                <div className="space-y-2">
-                  <Label htmlFor="coach">Coach</Label>
-                  <Select
-                    value={formData.coach_id}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, coach_id: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona un coach" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {coaches.map((coach) => (
-                        <SelectItem key={coach.id} value={coach.id}>
-                          {coach.full_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
                 <div className="space-y-2">
                   <Label htmlFor="name">Nombre del Evento</Label>
                   <Input
@@ -525,14 +494,11 @@ export default function AdminEvents() {
                             inscritos
                           </span>
                         </div>
-                        <div>
-                          <Badge>Coach: {event.coach_name}</Badge>
-                        </div>
                         <div className="flex gap-2 mt-4">
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => navigate(`/events/${event.id}`)}
+                            onClick={() => navigate(getEventUrl(event))}
                           >
                             <Eye className="h-4 w-4 mr-1" />
                             Ver
@@ -570,7 +536,6 @@ export default function AdminEvents() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Nombre</TableHead>
-                      <TableHead>Coach</TableHead>
                       <TableHead>Fecha</TableHead>
                       <TableHead>Ubicación</TableHead>
                       <TableHead>Inscritos</TableHead>
@@ -583,7 +548,6 @@ export default function AdminEvents() {
                         <TableCell className="font-medium">
                           {event.name}
                         </TableCell>
-                        <TableCell>{event.coach_name}</TableCell>
                         <TableCell>
                           {format(new Date(event.date), "PPP")}
                         </TableCell>
@@ -630,4 +594,3 @@ export default function AdminEvents() {
     </DashboardLayout>
   );
 }
-

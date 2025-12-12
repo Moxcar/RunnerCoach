@@ -10,6 +10,14 @@ export interface Coach {
   created_at: string
 }
 
+export interface Plan {
+  id: string
+  name: string
+  cost: number
+  features: string[]
+  is_active: boolean
+}
+
 export interface Client {
   id: string
   user_id: string
@@ -21,6 +29,8 @@ export interface Client {
   notes: string | null
   assigned_by_admin: string | null
   created_at: string
+  plan_id: string | null
+  plans: Plan | null
 }
 
 /**
@@ -114,16 +124,32 @@ export async function getAllCoaches(): Promise<Coach[]> {
 }
 
 /**
- * Obtiene todos los clientes
+ * Obtiene todos los clientes con su plan activo
  */
 export async function getAllClients(): Promise<Client[]> {
   const { data, error } = await supabase
     .from('clients')
-    .select('*')
+    .select(`
+      *,
+      plans (
+        id,
+        name,
+        cost,
+        features,
+        is_active
+      )
+    `)
     .order('created_at', { ascending: false })
 
   if (error) throw error
-  return data || []
+  
+  // Transformar los datos para que plans sea un objeto o null
+  return (data || []).map((client: any) => ({
+    ...client,
+    plans: Array.isArray(client.plans) && client.plans.length > 0 
+      ? client.plans[0] 
+      : client.plans || null
+  }))
 }
 
 /**

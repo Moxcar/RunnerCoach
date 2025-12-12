@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -34,6 +35,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import { getEventUrl, isClientRole } from "@/lib/utils";
 import stripePromise from "@/lib/stripe";
 
 interface Event {
@@ -46,6 +48,14 @@ interface Event {
   price: number;
   coach_id: string;
   isRegistered: boolean;
+  slug?: string | null;
+  paymentStatus?:
+    | "pending"
+    | "approved"
+    | "rejected"
+    | "completed"
+    | "failed"
+    | null;
 }
 
 export default function ClientEvents() {
@@ -63,18 +73,14 @@ export default function ClientEvents() {
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
   const [processingStripe, setProcessingStripe] = useState(false);
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
     if (user) {
       loadClientData();
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (coachId) {
       loadEvents();
     }
-  }, [coachId, user]);
+  }, [user]);
 
   const loadClientData = async () => {
     if (!user) return;
@@ -96,50 +102,110 @@ export default function ClientEvents() {
   };
 
   const loadEvents = async () => {
-    if (!user || !coachId) return;
+    if (!user) return;
 
     try {
-      // Cargar eventos del coach
+      // Cargar todos los eventos
       const { data: eventsData, error: eventsError } = await supabase
         .from("events")
         .select("*")
-        .eq("coach_id", coachId)
         .order("date", { ascending: true });
 
       if (eventsError) throw eventsError;
 
       // Cargar inscripciones del usuario (por user_id o por email)
-      const { data: registrationsByUser } = await supabase
+      const { data: registrationsByUser, error: userError } = await supabase
         .from("event_registrations")
-        .select("event_id")
+        .select("event_id, email, user_id")
         .eq("user_id", user.id);
 
-      // También buscar registros por email
-      let registrationsByEmail: any[] = [];
-      if (user.email) {
-        const { data: emailRegistrations } = await supabase
-          .from("event_registrations")
-          .select("event_id")
-          .eq("email", user.email.toLowerCase())
-          .is("user_id", null);
-
-        registrationsByEmail = emailRegistrations || [];
+      if (userError) {
+        console.error("Error loading registrations by user_id:", userError);
+      } else {
+        console.log("Registrations by user_id:", registrationsByUser);
       }
 
-      // Combinar ambos tipos de registros
+      // También buscar registros por email (sin restricción de user_id)
+      // Esto cubre casos donde el registro tiene email pero user_id puede ser NULL o no
+      let registrationsByEmail: any[] = [];
+      if (user.email) {
+        try {
+          const { data: emailRegistrations, error: emailError } = await supabase
+            .from("event_registrations")
+            .select("event_id, email, user_id")
+            .eq("email", user.email.toLowerCase());
+
+          if (emailError) {
+            console.error("Error loading registrations by email:", emailError);
+            console.error("Error details:", {
+              code: emailError.code,
+              message: emailError.message,
+              details: emailError.details,
+              hint: emailError.hint,
+            });
+            // Continuar sin los registros por email si hay error
+            // Los registros por user_id deberían ser suficientes
+          } else {
+            console.log("Registrations by email:", emailRegistrations);
+            registrationsByEmail = emailRegistrations || [];
+          }
+        } catch (err) {
+          console.error("Exception loading registrations by email:", err);
+          // Continuar sin los registros por email
+        }
+      }
+
+      // Combinar ambos tipos de registros y eliminar duplicados
       const allRegistrations = [
         ...(registrationsByUser || []),
-        ...registrationsByEmail,
+        ...(registrationsByEmail || []),
       ];
 
-      const registeredEventIds = new Set(
-        allRegistrations.map((r) => r.event_id)
+      // Eliminar duplicados por event_id
+      const uniqueRegistrations = allRegistrations.filter(
+        (reg, index, self) =>
+          index === self.findIndex((r) => r.event_id === reg.event_id)
       );
+
+      const registeredEventIds = new Set(
+        uniqueRegistrations.map((r) => r.event_id)
+      );
+
+      console.log("All unique registrations:", uniqueRegistrations);
+      console.log("Registered event IDs:", Array.from(registeredEventIds));
+
+      // Cargar pagos del usuario para eventos registrados
+      const registeredEventIdsArray = Array.from(registeredEventIds);
+      let paymentStatusMap: Record<string, string> = {};
+
+      if (registeredEventIdsArray.length > 0 && user.id) {
+        // Buscar todos los pagos del usuario
+        const { data: paymentsData } = await supabase
+          .from("payments")
+          .select("id, status, amount, date, client_user_id")
+          .eq("client_user_id", user.id);
+
+        if (paymentsData && paymentsData.length > 0 && eventsData) {
+          // Hacer match de pagos con eventos por monto y fecha cercana
+          for (const event of eventsData) {
+            if (registeredEventIdsArray.includes(event.id) && event.price > 0) {
+              // Buscar un pago que coincida con el monto del evento
+              const matchingPayment = paymentsData.find(
+                (p) => parseFloat(p.amount.toString()) === event.price
+              );
+              if (matchingPayment) {
+                paymentStatusMap[event.id] = matchingPayment.status;
+              }
+            }
+          }
+        }
+      }
 
       // Combinar datos
       const eventsWithRegistration = (eventsData || []).map((event) => ({
         ...event,
         isRegistered: registeredEventIds.has(event.id),
+        paymentStatus: paymentStatusMap[event.id] || null,
       }));
 
       setEvents(eventsWithRegistration as Event[]);
@@ -199,7 +265,13 @@ export default function ClientEvents() {
   };
 
   const handleStripePayment = async () => {
-    if (!user || !coachId || !selectedEvent) return;
+    if (!user || !selectedEvent) return;
+
+    // Para Stripe, necesitamos el coach_id del evento
+    if (!selectedEvent.coach_id) {
+      setError("Este evento no tiene un coach asociado para procesar el pago.");
+      return;
+    }
 
     if (!isStripeConfigured()) {
       setError(
@@ -222,7 +294,7 @@ export default function ClientEvents() {
           currency: "usd",
           userId: user.id,
           email: user.email,
-          coachId: coachId,
+          coachId: selectedEvent.coach_id,
           eventId: selectedEvent.id,
           eventName: selectedEvent.name,
         }),
@@ -276,43 +348,62 @@ export default function ClientEvents() {
   };
 
   const handleRegister = async (event: Event) => {
-    if (!user || !clientId) return;
+    if (!user) return;
 
-    // Si el evento es gratis, registrar directamente
-    if (event.price === 0) {
+    // Si no hay clientId, intentar obtenerlo
+    let currentClientId = clientId;
+    if (!currentClientId) {
       try {
-        // Verificar que el usuario tenga el rol de cliente
-        const { data: profile, error: profileError } = await supabase
-          .from("user_profiles")
-          .select("role")
-          .eq("id", user.id)
+        const { data: client } = await supabase
+          .from("clients")
+          .select("id")
+          .eq("user_id", user.id)
           .single();
 
-        if (profileError) {
-          throw new Error(
-            "Error al verificar perfil de usuario: " + profileError.message
-          );
+        if (client) {
+          currentClientId = client.id;
+          setClientId(client.id);
         }
+      } catch (error) {
+        console.error("Error loading client:", error);
+      }
+    }
 
-        if (profile?.role !== "client") {
-          throw new Error("Solo los clientes pueden registrarse a eventos");
-        }
-
-        const { error } = await supabase.from("event_registrations").insert({
+    // Si el evento es gratis, registrar directamente
+    // Cualquier usuario autenticado puede registrarse a eventos
+    if (event.price === 0) {
+      try {
+        const registrationData: any = {
           event_id: event.id,
-          client_id: clientId,
           user_id: user.id,
-        });
+        };
+
+        // Solo agregar client_id si existe (opcional)
+        if (currentClientId) {
+          registrationData.client_id = currentClientId;
+        }
+
+        const { error } = await supabase
+          .from("event_registrations")
+          .insert(registrationData);
 
         if (error) {
           console.error("Registration error details:", error);
           throw error;
         }
 
-        loadEvents();
+        // Limpiar errores y mostrar mensaje de éxito
+        setError("");
+        setSuccessMessage("¡Te has inscrito exitosamente al evento!");
+        setTimeout(() => {
+          setSuccessMessage("");
+        }, 5000);
+
+        // Recargar eventos para actualizar el estado
+        await loadEvents();
       } catch (error: any) {
         console.error("Error registering for event:", error);
-        alert("Error al inscribirse: " + error.message);
+        setError("Error al inscribirse: " + error.message);
       }
     } else {
       // Si el evento es de pago, abrir diálogo de pago
@@ -322,28 +413,33 @@ export default function ClientEvents() {
   };
 
   const handleCompleteRegistration = async () => {
-    if (!user || !clientId || !selectedEvent) return;
+    if (!user || !selectedEvent) return;
+
+    // Asegurar que tenemos clientId si es necesario para el pago
+    let currentClientId = clientId;
+    if (!currentClientId) {
+      try {
+        const { data: client } = await supabase
+          .from("clients")
+          .select("id")
+          .eq("user_id", user.id)
+          .single();
+
+        if (client) {
+          currentClientId = client.id;
+          setClientId(client.id);
+        }
+      } catch (error) {
+        console.error("Error loading client:", error);
+      }
+    }
 
     setError("");
     setUploadingReceipt(false);
 
     try {
-      // Verificar que el usuario tenga el rol de cliente
-      const { data: profile, error: profileError } = await supabase
-        .from("user_profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-      if (profileError) {
-        throw new Error(
-          "Error al verificar perfil de usuario: " + profileError.message
-        );
-      }
-
-      if (profile?.role !== "client") {
-        throw new Error("Solo los clientes pueden registrarse a eventos");
-      }
+      // Verificar que el usuario esté autenticado (cualquier usuario puede registrarse a eventos)
+      // No requerimos verificación de rol específico, solo que el usuario esté autenticado
 
       let receiptUrl: string | null = null;
 
@@ -352,42 +448,74 @@ export default function ClientEvents() {
         receiptUrl = await uploadReceipt(receiptFile, user.id);
       }
 
-      // Crear el pago
-      const { error: paymentError } = await supabase.from("payments").insert({
-        coach_id: selectedEvent.coach_id,
-        client_id: clientId,
-        client_user_id: user.id,
-        amount: selectedEvent.price,
-        date: new Date().toISOString().split("T")[0],
-        status: paymentMethod === "stripe" ? "pending" : "pending",
-        method: paymentMethod === "stripe" ? "stripe" : "manual",
-        receipt_url: receiptUrl,
-      });
+      // Crear el pago (solo si hay coach_id en el evento y el evento tiene precio)
+      if (selectedEvent.coach_id && selectedEvent.price > 0) {
+        const paymentData: any = {
+          coach_id: selectedEvent.coach_id,
+          client_user_id: user.id,
+          amount: selectedEvent.price,
+          date: new Date().toISOString().split("T")[0],
+          status: paymentMethod === "stripe" ? "pending" : "pending",
+          method: paymentMethod === "stripe" ? "stripe" : "manual",
+          receipt_url: receiptUrl,
+        };
 
-      if (paymentError) {
-        console.error("Payment insert error details:", paymentError);
-        throw paymentError;
+        // Solo agregar client_id si existe
+        if (currentClientId) {
+          paymentData.client_id = currentClientId;
+        }
+
+        const { error: paymentError } = await supabase
+          .from("payments")
+          .insert(paymentData);
+
+        if (paymentError) {
+          console.error("Payment insert error details:", paymentError);
+          throw paymentError;
+        }
       }
 
       // Registrar al evento
+      const registrationData: any = {
+        event_id: selectedEvent.id,
+        user_id: user.id,
+      };
+
+      // Solo agregar client_id si existe
+      if (currentClientId) {
+        registrationData.client_id = currentClientId;
+      }
+
       const { error: registrationError } = await supabase
         .from("event_registrations")
-        .insert({
-          event_id: selectedEvent.id,
-          client_id: clientId,
-          user_id: user.id,
-        });
+        .insert(registrationData);
 
       if (registrationError) {
         console.error("Registration insert error details:", registrationError);
         throw registrationError;
       }
 
+      // Limpiar errores y mostrar mensaje de éxito
+      setError("");
+      let successMsg = "¡Te has inscrito exitosamente al evento!";
+      if (receiptUrl) {
+        successMsg +=
+          " Tu comprobante de pago ha sido subido correctamente y está pendiente de revisión.";
+      } else if (paymentMethod === "stripe") {
+        successMsg += " El pago se procesará a través de Stripe.";
+      }
+      setSuccessMessage(successMsg);
+      setTimeout(() => {
+        setSuccessMessage("");
+      }, 6000);
+
       setIsPaymentDialogOpen(false);
       setSelectedEvent(null);
       setReceiptFile(null);
       setPaymentMethod("stripe");
-      loadEvents();
+
+      // Recargar eventos para actualizar el estado
+      await loadEvents();
     } catch (error: any) {
       console.error("Error completing registration:", error);
       setError(error.message || "Error al completar el registro");
@@ -422,30 +550,47 @@ export default function ClientEvents() {
     (event) => new Date(event.date) < new Date()
   );
 
-  if (!coachId) {
-    return (
-      <DashboardLayout>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-center text-muted-foreground">
-              No estás asociado a ningún coach. Contacta a tu coach para que te
-              agregue como cliente.
-            </p>
-          </CardContent>
-        </Card>
-      </DashboardLayout>
-    );
-  }
-
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold">Eventos</h1>
           <p className="text-muted-foreground">
-            Explora y regístrate en eventos de tu coach
+            Explora y regístrate en eventos disponibles
           </p>
         </div>
+
+        {/* Mensaje de éxito */}
+        {successMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="flex items-center gap-3 p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
+          >
+            <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+            <p className="text-sm font-medium text-green-700 dark:text-green-300">
+              {successMessage}
+            </p>
+          </motion.div>
+        )}
+
+        {/* Mensaje de error */}
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-3 p-4 rounded-lg bg-destructive/10 border border-destructive/20"
+          >
+            <p className="text-sm font-medium text-destructive">{error}</p>
+            <button
+              onClick={() => setError("")}
+              className="ml-auto text-destructive hover:text-destructive/80"
+            >
+              ×
+            </button>
+          </motion.div>
+        )}
 
         {upcomingEvents.length > 0 && (
           <motion.div
@@ -455,24 +600,40 @@ export default function ClientEvents() {
             <h2 className="text-xl font-semibold mb-4">Próximos eventos</h2>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {upcomingEvents.map((event) => (
-                <Card key={event.id}>
-                  {event.image_url ? (
-                    <div className="w-full h-48 overflow-hidden rounded-t-lg bg-gray-200">
+                <Card key={event.id} className="overflow-hidden">
+                  <div className="relative w-full h-48 overflow-hidden bg-gray-900">
+                    {/* Background Image: event image or gradient background */}
+                    {event.image_url ? (
                       <img
                         src={event.image_url}
                         alt={event.name}
-                        className="w-full h-full object-cover"
+                        className="absolute inset-0 w-full h-full object-cover"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
                           target.style.display = "none";
                         }}
                       />
+                    ) : (
+                      <div
+                        className="absolute inset-0 w-full h-full bg-cover bg-center"
+                        style={{
+                          backgroundImage: `url('/event-background-gradient.png')`,
+                        }}
+                      />
+                    )}
+
+                    {/* Logo SVG: ubyprotrail.svg centered */}
+                    <div className="absolute inset-0 flex items-center justify-center z-10">
+                      <img
+                        src="/ubyprotrail.svg"
+                        alt="UBYPROTRAIL"
+                        className="w-2/3 max-w-xs h-auto opacity-90"
+                      />
                     </div>
-                  ) : (
-                    <div className="w-full h-48 bg-gradient-to-br from-[#e9540d]/10 to-[#b07a1e]/10 flex items-center justify-center rounded-t-lg">
-                      <Calendar className="h-12 w-12 text-[#e9540d]/30" />
-                    </div>
-                  )}
+
+                    {/* Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent z-20" />
+                  </div>
                   <CardHeader>
                     <CardTitle className="text-lg">{event.name}</CardTitle>
                   </CardHeader>
@@ -510,28 +671,55 @@ export default function ClientEvents() {
                         variant="outline"
                         size="sm"
                         className="w-full"
-                        onClick={() => navigate(`/events/${event.id}`)}
+                        onClick={() => navigate(getEventUrl(event))}
                       >
                         <Eye className="h-4 w-4 mr-2" />
                         Ver detalles
                       </Button>
                       {event.isRegistered ? (
-                        <>
-                          <div className="flex items-center gap-2 text-green-600">
-                            <CheckCircle className="h-4 w-4" />
-                            <span className="text-sm font-medium">
-                              Inscrito
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-center gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                            <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                            <span className="text-sm font-semibold text-green-700 dark:text-green-300">
+                              Ya estás inscrito
                             </span>
                           </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="w-full"
-                            onClick={() => handleUnregister(event.id)}
-                          >
-                            Cancelar inscripción
-                          </Button>
-                        </>
+                          {event.price > 0 && event.paymentStatus && (
+                            <div className="flex items-center justify-center">
+                              <Badge
+                                variant={
+                                  event.paymentStatus === "approved" ||
+                                  event.paymentStatus === "completed"
+                                    ? "default"
+                                    : event.paymentStatus === "rejected" ||
+                                      event.paymentStatus === "failed"
+                                    ? "destructive"
+                                    : "secondary"
+                                }
+                                className={
+                                  event.paymentStatus === "approved" ||
+                                  event.paymentStatus === "completed"
+                                    ? "bg-green-600 hover:bg-green-700"
+                                    : event.paymentStatus === "rejected" ||
+                                      event.paymentStatus === "failed"
+                                    ? "bg-red-600 hover:bg-red-700"
+                                    : "bg-yellow-600 hover:bg-yellow-700"
+                                }
+                              >
+                                {event.paymentStatus === "pending" &&
+                                  "Pago pendiente"}
+                                {event.paymentStatus === "approved" &&
+                                  "Pago aprobado"}
+                                {event.paymentStatus === "rejected" &&
+                                  "Pago rechazado"}
+                                {event.paymentStatus === "completed" &&
+                                  "Pago completado"}
+                                {event.paymentStatus === "failed" &&
+                                  "Pago fallido"}
+                              </Badge>
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <Button
                           className="w-full"
@@ -557,24 +745,40 @@ export default function ClientEvents() {
             <h2 className="text-xl font-semibold mb-4">Eventos pasados</h2>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {pastEvents.map((event) => (
-                <Card key={event.id} className="opacity-60">
-                  {event.image_url ? (
-                    <div className="w-full h-48 overflow-hidden rounded-t-lg bg-gray-200">
+                <Card key={event.id} className="opacity-60 overflow-hidden">
+                  <div className="relative w-full h-48 overflow-hidden bg-gray-900">
+                    {/* Background Image: event image or gradient background */}
+                    {event.image_url ? (
                       <img
                         src={event.image_url}
                         alt={event.name}
-                        className="w-full h-full object-cover"
+                        className="absolute inset-0 w-full h-full object-cover"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
                           target.style.display = "none";
                         }}
                       />
+                    ) : (
+                      <div
+                        className="absolute inset-0 w-full h-full bg-cover bg-center"
+                        style={{
+                          backgroundImage: `url('/event-background-gradient.png')`,
+                        }}
+                      />
+                    )}
+
+                    {/* Logo SVG: ubyprotrail.svg centered */}
+                    <div className="absolute inset-0 flex items-center justify-center z-10">
+                      <img
+                        src="/ubyprotrail.svg"
+                        alt="UBYPROTRAIL"
+                        className="w-2/3 max-w-xs h-auto opacity-90"
+                      />
                     </div>
-                  ) : (
-                    <div className="w-full h-48 bg-gradient-to-br from-[#e9540d]/10 to-[#b07a1e]/10 flex items-center justify-center rounded-t-lg">
-                      <Calendar className="h-12 w-12 text-[#e9540d]/30" />
-                    </div>
-                  )}
+
+                    {/* Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent z-20" />
+                  </div>
                   <CardHeader>
                     <CardTitle className="text-lg">{event.name}</CardTitle>
                   </CardHeader>
@@ -594,10 +798,10 @@ export default function ClientEvents() {
                       )}
                     </div>
                     {event.isRegistered && (
-                      <div className="flex items-center gap-2 text-green-600">
-                        <CheckCircle className="h-4 w-4" />
-                        <span className="text-sm font-medium">
-                          Participaste
+                      <div className="flex items-center justify-center gap-2 p-2 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                        <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        <span className="text-sm font-semibold text-green-700 dark:text-green-300">
+                          Participaste en este evento
                         </span>
                       </div>
                     )}

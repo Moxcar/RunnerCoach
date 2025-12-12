@@ -519,6 +519,7 @@ BEGIN
           date,
           status,
           method,
+          email,
           created_at
         ) VALUES (
           client_record.coach_id,
@@ -528,6 +529,7 @@ BEGIN
           payment_date,
           payment_status,
           payment_method,
+          NULL, -- email (NULL porque el usuario tiene cuenta)
           payment_date::timestamp with time zone
         );
       END LOOP;
@@ -612,6 +614,18 @@ BEGIN
           location,
           description,
           price,
+          max_capacity,
+          image_url,
+          loop_distance,
+          loop_elevation,
+          loop_duration,
+          prize_pool,
+          start_date,
+          end_date,
+          registration_deadline,
+          event_type,
+          external_registration_url,
+          slug,
           created_at
         ) VALUES (
           event_coach_id,
@@ -620,6 +634,18 @@ BEGIN
           event_location,
           event_description,
           event_price,
+          NULL, -- max_capacity
+          NULL, -- image_url
+          NULL, -- loop_distance
+          NULL, -- loop_elevation
+          NULL, -- loop_duration
+          NULL, -- prize_pool
+          NULL, -- start_date
+          NULL, -- end_date
+          NULL, -- registration_deadline
+          NULL, -- event_type
+          NULL, -- external_registration_url
+          NULL, -- slug
           event_date::timestamp with time zone - interval '7 days' -- Creado 7 días antes del evento
         ) RETURNING id INTO event_id;
       
@@ -661,12 +687,14 @@ BEGIN
                   event_id,
                   client_id,
                   user_id,
+                  email,
                   created_at
                 )
                 SELECT 
                   v_event_id,
                   registration_client_id,
                   registration_user_id,
+                  NULL, -- email (NULL porque el usuario tiene cuenta)
                   event_date::timestamp with time zone - (random() * 30)::int * interval '1 day'
                 WHERE NOT EXISTS (
                   SELECT 1 FROM event_registrations er
@@ -679,6 +707,205 @@ BEGIN
         END;
       END LOOP;
     END LOOP;
+  END;
+
+  -- ============================================
+  -- PASO 6.5: CREAR EVENTO UBY PROTRAIL (Ultra Backyard 2025)
+  -- ============================================
+  
+  DECLARE
+    uby_event_id uuid;
+    uby_coach_id uuid;
+    uby_description text := 'Tu propio Ultra Backyard. Tu reto personal.
+
+¿Por cuántas vueltas vas?
+
+El Ultra Backyard es la prueba definitiva de resistencia mental y física.
+
+Tienes 60 minutos para completar un circuito de 5.2 km 221 D+ (info puede variar según el GPS).
+
+El tiempo que sobra es para recuperar fuerzas y prepararte para el siguiente loop, que arranca puntual a la hora exacta.
+
+LOOP DE 5.2 KM
++221 MTS
+60 MINS
+
+El circuito es retador, pero accesible.
+
+Caminando y trotando (CA/CO) puedes completarlo en menos de una hora, asegurando que todos vivan la emoción de la experiencia UBY de poder reiniciar una y otra vez.
+
+¿Cuál será tu límite?
+
+¿Solo quieres disfrutar?
+
+¡O quizás ganar un dinerito!
+
+Hemos añadido un incentivo extra para avivar la llama de la competición: el modo #maltratate.
+
+La bolsa total a repartir es de $15,000.00 m.n.
+
+Rifas y regalos para los corredores que van finalizando
+
+#MALTRÁTATE
+
+Cada 10 vueltas (Vuelta 10, 20, 30 y 40)
+
+EL DESAFÍO
+
+El y la corredora más rápida de cada 10 vueltas ganan un premio en efectivo de nuestros patrocinadores.
+
+TU ESTRATEGIA
+
+Puedes competir por la victoria total como el o la última corredora en quedar de pie, buscar ganar los bonos en efectivo cada 10 vueltas o simplemente correr y ver hasta dónde puedes llegar
+
+PROGRAMA
+
+VIERNES 12 DE DICIEMBRE
+
+Horario: 12 a 19 hrs. (no olvides tu QR y una identificación)
+Entrega de números
+Deporte Habitat Sur
+Av López Mateos Sur, Vicente Guerrero 3188, entre Constitución, Agua Blanca Sur, 45235 Zapopan, Jal.
+
+SÁBADO 13 DE DICIEMBRE
+
+La Soledad Bike Park
+
+6:00 a.m.
+Apertura del área de meta para recibir a corredores y acompañantes.
+
+6:00 a.m. - 7:00 a.m.
+Continúa entrega de números (La Soledad Bike Park)
+Se requiere presentar tu QR y Identificación oficial para la entrega
+
+8:00 a.m.
+Arranque puntual de la primera vuelta.
+
+Cada hora se repite la salida hasta que quede un(a) solo(a) corredor(a) en pie o se complete la vuelta #40.
+
+DOMINGO 14 DE DICIEMBRE
+
+11:00 p.m.
+Última arrancada: vuelta final.
+
+11:59 p.m.
+Cierre de meta e inicio de preparativos para la premiación.
+
+Si los finalistas no llegan a la vuelta #40, se premiará al concluir la última vuelta completada y se entregaran los premios en efectivo de la manera que se explica en el Reglamento.
+
+12:15 a.m. (lunes)
+En caso de alcanzar la vuelta #40
+Clausura oficial del evento deportivo.
+Continúa el campamento y convivencia para quienes decidan quedarse a descansar.
+
+MATERIAL SUGERIDO
+
+• Calzado para trail
+• Lámpara frontal
+• Botiquín personal
+• Tienda de campaña y sleeping (para el descanso del corredor o acompañantes)
+• Rompevientos
+• Bastones
+• Material para aseo personal
+
+AUTO SUFICIENCIA
+
+El evento no cuenta con un abastecimiento oficial de alimentos sólidos, contaremos con producto de GU en geles, gomas e hidratación pero es obligatorio para cada corredor llevar su propio alimento.
+
+DETALLES DEL DESAFÍO
+
+INSCRIPCIONES Y PAGOS
+
+• Fechas de inscripción: cierre de registro lunes 8 diciembre 11 am
+• Costo de inscripción: $650
+• Proceso de inscripción: protrail.mx/eventos/uby-2025/registro
+• Métodos de pago: SPEI y Tarjetas de crédito/débito
+• Límite de corredores: 250 corredores
+• PROMOCION para equipos: Paga 10 y recibe 11 folios
+• Menores de edad con acompañante mayor de edad y firmando responsiva especial
+• Pet Friendly, mascotas bienvenidas en el evento.
+
+CATEGORÍAS Y PREMIACIÓN
+
+• Categorias: Libre varonil y libre femenil
+• Premiación: $15,000MXN a repartir de la siguiente manera:
+  - $500.00 para el corredor y la corredora más rápida de la vuelta 10
+  - $1,000.00 para el corredor y la corredora más rápida de la vuelta 20
+  - $2,000.00 para el corredor y la corredora más rápida de la vuelta 30
+  - $4,000.00 para el corredor y la corredora más rápida de la vuelta 40
+• Trofeo al último hombre y la última mujer de pie como ganadores absolutos.
+
+REGLAS DEL JUEGO Y PARTE LEGAL
+
+Consulta cada apartado de información
+
+Reglamento de competencia
+Deslinde de Responsabilidad
+
+Para poder participar es requerido firmar reglamento y deslinde de responsabilidad.
+
+CONDICIONES DE REGISTRO
+
+Para cambios se debe presentar copia de INE el mismo día de entrega de números. No hay devoluciones o reembolsos.
+
+SERVICIOS ADICIONALES
+
+• Busca tus Fotos a cargo de PHOTOSPORTS
+• Estacionamiento y zona de camping sin costo extra';
+  BEGIN
+    -- Seleccionar el primer coach/admin disponible para el evento UBY
+    SELECT id INTO uby_coach_id
+    FROM user_profiles
+    WHERE role IN ('admin', 'coach')
+    ORDER BY created_at
+    LIMIT 1;
+    
+    -- Crear el evento Ultra Backyard 2025
+    INSERT INTO events (
+      coach_id,
+      name,
+      date,
+      location,
+      description,
+      price,
+      max_capacity,
+      image_url,
+      loop_distance,
+      loop_elevation,
+      loop_duration,
+      prize_pool,
+      start_date,
+      end_date,
+      registration_deadline,
+      event_type,
+      external_registration_url,
+      slug,
+      created_at,
+      updated_at
+    ) VALUES (
+      uby_coach_id,
+      'Ultra Backyard 2025',
+      '2025-12-13'::date,
+      'La Soledad Bike Park, Zapopan, Jalisco',
+      uby_description,
+      650.00,
+      250,
+      NULL, -- image_url
+      NULL, -- loop_distance
+      NULL, -- loop_elevation
+      NULL, -- loop_duration
+      NULL, -- prize_pool
+      NULL, -- start_date
+      NULL, -- end_date
+      NULL, -- registration_deadline
+      NULL, -- event_type
+      NULL, -- external_registration_url
+      NULL, -- slug
+      '2025-12-12 03:32:49.481998+00'::timestamp with time zone,
+      '2025-12-12 03:32:49.481998+00'::timestamp with time zone
+    ) RETURNING id INTO uby_event_id;
+    
+    RAISE NOTICE 'Evento Ultra Backyard 2025 creado con ID: %', uby_event_id;
   END;
 
   RAISE NOTICE 'Seeder completado exitosamente!';

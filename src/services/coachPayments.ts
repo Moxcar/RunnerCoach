@@ -251,7 +251,7 @@ export async function calculatePendingPaymentsForCoach(
     .not('client_payment_id', 'is', null)
 
   const existingPaymentIds = new Set(
-    existingPayments?.map(p => p.client_payment_id) || []
+    existingPayments?.map((p: { client_payment_id: string }) => p.client_payment_id) || []
   )
 
   // Calcular pagos pendientes
@@ -284,8 +284,267 @@ export async function calculatePendingPaymentsForCoach(
   return { totalPending, payments }
 }
 
+export interface CoachMonthlyPaymentSummary {
+  coach_id: string
+  coach_name: string
+  total_amount: number
+  payment_count: number
+  payment_type: 'percentage' | 'fixed' | null
+  percentage_value: number | null
+  fixed_amount: number | null
+  has_config: boolean
+  payments: Array<{
+    clientPaymentId: string
+    clientName: string
+    clientAmount: number
+    coachAmount: number
+    paymentDate: string
+  }>
+}
 
+/**
+ * Calcula los pagos para todos los coaches basado en los pagos de clientes de un mes específico
+ */
+export async function calculateAllCoachesPaymentsForMonth(
+  year: number,
+  month: number
+): Promise<CoachMonthlyPaymentSummary[]> {
+  // Calcular rango de fechas del mes (primer día y último día)
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`
+  const lastDay = new Date(year, month, 0).getDate()
+  const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
+  // Obtener todos los pagos completados del mes
+  const { data: clientPayments, error: paymentsError } = await supabase
+    .from('payments')
+    .select(`
+      id,
+      amount,
+      date,
+      status,
+      coach_id,
+      client_id,
+      client_user_id
+    `)
+    .eq('status', 'completed')
+    .gte('date', startDate)
+    .lte('date', endDate)
+    .order('date', { ascending: false })
 
+  if (paymentsError) throw paymentsError
+
+  if (!clientPayments || clientPayments.length === 0) {
+    return []
+  }
+
+  // Obtener todos los IDs únicos necesarios
+  const clientIds = [
+    ...new Set(clientPayments.map((p: any) => p.client_id).filter(Boolean)),
+  ]
+  const clientUserIds = [
+    ...new Set(clientPayments.map((p: any) => p.client_user_id).filter(Boolean)),
+  ]
+  const coachIds = [
+    ...new Set(clientPayments.map((p: any) => p.coach_id).filter(Boolean)),
+  ]
+
+  // Obtener información de clientes
+  const clientMap = new Map<string, { name: string; coach_id: string | null }>()
+  if (clientIds.length > 0) {
+    const { data: clients } = await supabase
+      .from('clients')
+      .select('id, name, coach_id')
+      .in('id', clientIds)
+
+    if (clients) {
+      clients.forEach((client: any) => {
+        clientMap.set(client.id, {
+          name: client.name || 'Cliente sin nombre',
+          coach_id: client.coach_id,
+        })
+      })
+    }
+  }
+
+  // Obtener nombres de clientes desde user_profiles
+  const clientUserMap = new Map<string, string>()
+  if (clientUserIds.length > 0) {
+    const { data: userProfiles } = await supabase
+      .from('user_profiles')
+      .select('id, full_name')
+      .in('id', clientUserIds)
+
+    if (userProfiles) {
+      userProfiles.forEach((profile: any) => {
+        if (profile.full_name) {
+          clientUserMap.set(profile.id, profile.full_name)
+        }
+      })
+    }
+  }
+
+  // Obtener nombres de coaches
+  const coachMap = new Map<string, string>()
+  if (coachIds.length > 0) {
+    const { data: coaches } = await supabase
+      .from('user_profiles')
+      .select('id, full_name')
+      .in('id', coachIds)
+
+    if (coaches) {
+      coaches.forEach((coach: any) => {
+        if (coach.full_name) {
+          coachMap.set(coach.id, coach.full_name)
+        }
+      })
+    }
+  }
+
+  // Obtener todas las configuraciones de pago de coaches
+  const { data: configs } = await supabase
+    .from('coach_payment_configs')
+    .select('*')
+
+  const configMap = new Map<string, CoachPaymentConfig>()
+  if (configs) {
+    configs.forEach((config: CoachPaymentConfig) => {
+      configMap.set(config.coach_id, config)
+    })
+  }
+
+  // Obtener pagos de coaches existentes para excluir
+  const { data: existingPayments } = await supabase
+    .from('coach_payments')
+    .select('client_payment_id, coach_id')
+    .not('client_payment_id', 'is', null)
+
+  const existingPaymentIds = new Set(
+    existingPayments?.map((p: { client_payment_id: string }) => p.client_payment_id) || []
+  )
+
+  // Agrupar pagos por coach
+  const coachPaymentsMap = new Map<string, Array<{
+    clientPaymentId: string
+    clientName: string
+    clientAmount: number
+    coachAmount: number
+    paymentDate: string
+  }>>()
+
+  for (const payment of clientPayments) {
+    // Obtener coach_id del pago o del cliente
+    let coachId = payment.coach_id
+    if (!coachId && payment.client_id && clientMap.has(payment.client_id)) {
+      coachId = clientMap.get(payment.client_id)?.coach_id || null
+    }
+
+    if (!coachId) continue
+
+    // Obtener nombre del cliente
+    let clientName = 'Cliente desconocido'
+    if (payment.client_id && clientMap.has(payment.client_id)) {
+      clientName = clientMap.get(payment.client_id)!.name
+    } else if (payment.client_user_id && clientUserMap.has(payment.client_user_id)) {
+      clientName = clientUserMap.get(payment.client_user_id)!
+    }
+
+    // Verificar si ya tiene un pago asociado
+    if (existingPaymentIds.has(payment.id)) continue
+
+    // Obtener configuración del coach
+    const config = configMap.get(coachId)
+    if (!config) {
+      // Si no hay configuración, agregar al mapa pero sin calcular
+      if (!coachPaymentsMap.has(coachId)) {
+        coachPaymentsMap.set(coachId, [])
+      }
+      continue
+    }
+
+    // Calcular monto del coach
+    const clientAmount = parseFloat(payment.amount.toString())
+    let coachAmount = 0
+
+    if (config.payment_type === 'percentage' && config.percentage_value) {
+      coachAmount = (clientAmount * config.percentage_value) / 100
+    } else if (config.payment_type === 'fixed' && config.fixed_amount) {
+      coachAmount = parseFloat(config.fixed_amount.toString())
+    }
+
+    // Agregar al mapa
+    if (!coachPaymentsMap.has(coachId)) {
+      coachPaymentsMap.set(coachId, [])
+    }
+
+    coachPaymentsMap.get(coachId)!.push({
+      clientPaymentId: payment.id,
+      clientName,
+      clientAmount,
+      coachAmount,
+      paymentDate: payment.date,
+    })
+  }
+
+  // Convertir a array de resúmenes
+  const summaries: CoachMonthlyPaymentSummary[] = []
+
+  for (const [coachId, payments] of coachPaymentsMap.entries()) {
+    const config = configMap.get(coachId)
+    const totalAmount = payments.reduce((sum, p) => sum + p.coachAmount, 0)
+
+    summaries.push({
+      coach_id: coachId,
+      coach_name: coachMap.get(coachId) || 'Coach desconocido',
+      total_amount: totalAmount,
+      payment_count: payments.length,
+      payment_type: config?.payment_type || null,
+      percentage_value: config?.percentage_value || null,
+      fixed_amount: config?.fixed_amount || null,
+      has_config: !!config,
+      payments,
+    })
+  }
+
+  // Ordenar por monto total descendente
+  return summaries.sort((a, b) => b.total_amount - a.total_amount)
+}
+
+/**
+ * Crea pagos masivos para múltiples coaches
+ */
+export async function createBulkCoachPayments(
+  adminId: string,
+  payments: Array<{
+    coachId: string
+    amount: number
+    paymentType: 'percentage' | 'fixed'
+    percentageValue?: number
+    fixedAmount?: number
+    clientPaymentIds?: string[]
+    notes?: string
+  }>
+): Promise<CoachPayment[]> {
+  const insertData = payments.map(p => ({
+    coach_id: p.coachId,
+    admin_id: adminId,
+    amount: p.amount,
+    payment_type: p.paymentType,
+    percentage_value: p.paymentType === 'percentage' ? p.percentageValue : null,
+    fixed_amount: p.paymentType === 'fixed' ? p.fixedAmount : null,
+    client_payment_id: p.clientPaymentIds && p.clientPaymentIds.length === 1 
+      ? p.clientPaymentIds[0] 
+      : null,
+    status: 'pending' as const,
+    notes: p.notes || null,
+  }))
+
+  const { data, error } = await supabase
+    .from('coach_payments')
+    .insert(insertData)
+    .select()
+
+  if (error) throw error
+  return data || []
+}
 
 

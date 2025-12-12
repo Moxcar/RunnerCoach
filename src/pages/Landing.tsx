@@ -22,6 +22,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
+import { getEventUrl } from "@/lib/utils";
 import logo from "/logo.svg";
 import logoBlanco from "/logoBlanco.svg";
 
@@ -33,6 +34,7 @@ interface Event {
   description: string | null;
   image_url: string | null;
   price: number;
+  slug?: string | null;
 }
 
 interface Plan {
@@ -910,41 +912,44 @@ export default function Landing() {
                   className="max-w-5xl mx-auto"
                 >
                   {events.map((event) => (
-                    <Link key={event.id} to={`/events/${event.id}`}>
+                    <Link key={event.id} to={getEventUrl(event)}>
                       <div className="group relative bg-gradient-to-br from-[#e9540d]/10 via-orange-50 to-amber-50 rounded-3xl overflow-hidden border-2 border-[#e9540d]/20 hover:border-[#e9540d] transition-all duration-500 shadow-xl hover:shadow-2xl">
                         <div className="grid md:grid-cols-2 gap-0">
                           {/* Image Section */}
                           <div className="relative h-80 md:h-auto md:min-h-[500px] overflow-hidden bg-gray-900">
+                            {/* Background Image: event image or gradient background */}
                             {event.image_url ? (
-                              <>
-                                <img
-                                  src={event.image_url}
-                                  alt={event.name}
-                                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                                  onError={(e) => {
-                                    // Si la imagen falla, mostrar el placeholder
-                                    const target = e.target as HTMLImageElement;
-                                    target.style.display = "none";
-                                    const placeholder =
-                                      target.parentElement?.querySelector(
-                                        ".image-placeholder"
-                                      ) as HTMLElement;
-                                    if (placeholder)
-                                      placeholder.style.display = "flex";
-                                  }}
-                                />
-                                <div className="image-placeholder absolute inset-0 w-full h-full bg-gradient-to-br from-[#e9540d] via-[#d14a0b] to-[#b07a1e] flex items-center justify-center hidden">
-                                  <Mountain className="h-32 w-32 text-white/20" />
-                                </div>
-                                <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-black/20 to-transparent md:from-black/30" />
-                              </>
+                              <img
+                                src={event.image_url}
+                                alt={event.name}
+                                className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 z-0"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = "none";
+                                }}
+                              />
                             ) : (
-                              <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-[#e9540d] via-[#d14a0b] to-[#b07a1e] flex items-center justify-center">
-                                <Mountain className="h-32 w-32 text-white/20" />
-                              </div>
+                              <div
+                                className="absolute inset-0 w-full h-full bg-cover bg-center z-0"
+                                style={{
+                                  backgroundImage: `url('/event-background-gradient.png')`,
+                                }}
+                              />
                             )}
+
+                            {/* Logo SVG: ubyprotrail.svg centered */}
+                            <div className="absolute inset-0 flex items-center justify-center z-10">
+                              <img
+                                src="/ubyprotrail.svg"
+                                alt="UBYPROTRAIL"
+                                className="w-3/4 max-w-md h-auto opacity-90"
+                              />
+                            </div>
+
+                            {/* Overlay */}
+                            <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-black/20 to-transparent md:from-black/30 z-20" />
                             {/* Badge on Image */}
-                            <div className="absolute top-6 left-6 z-10">
+                            <div className="absolute top-6 left-6 z-30">
                               <Badge className="bg-[#e9540d] text-white border-0 px-4 py-2 text-sm font-bold shadow-lg">
                                 <Flame className="h-4 w-4 mr-2" />
                                 Evento Destacado
@@ -1025,7 +1030,7 @@ export default function Landing() {
                               className="w-full bg-[#e9540d] hover:bg-[#d14a0b] text-white font-bold py-6 text-lg shadow-lg group-hover:shadow-xl transition-all"
                               onClick={(e: React.MouseEvent) => {
                                 e.preventDefault();
-                                navigate(`/events/${event.id}`);
+                                navigate(getEventUrl(event));
                               }}
                             >
                               Ver Detalles Completos
@@ -1059,46 +1064,46 @@ export default function Landing() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
                       >
-                        <Link to={`/events/${event.id}`}>
+                        <Link to={getEventUrl(event)}>
                           <div className="bg-gray-50 rounded-2xl overflow-hidden border border-gray-100 hover:border-primary/30 hover:shadow-xl transition-all duration-300 cursor-pointer">
-                            {event.image_url ? (
-                              <div className="relative h-52 overflow-hidden">
+                            <div className="relative h-52 overflow-hidden">
+                              {/* Background Image: event image or gradient background */}
+                              {event.image_url ? (
                                 <img
                                   src={event.image_url}
                                   alt={event.name}
-                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 z-0"
                                   onError={(e) => {
-                                    // Si la imagen falla, mostrar el placeholder
                                     const target = e.target as HTMLImageElement;
                                     target.style.display = "none";
-                                    const placeholder =
-                                      target.parentElement?.querySelector(
-                                        ".image-placeholder"
-                                      ) as HTMLElement;
-                                    if (placeholder)
-                                      placeholder.style.display = "flex";
                                   }}
                                 />
-                                <div className="image-placeholder h-52 bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center hidden">
-                                  <Mountain className="h-16 w-16 text-primary/20" />
-                                </div>
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                                <div className="absolute bottom-4 left-4 right-4">
-                                  <p className="text-white font-bold text-lg">
-                                    {event.name}
-                                  </p>
-                                </div>
+                              ) : (
+                                <div
+                                  className="absolute inset-0 w-full h-full bg-cover bg-center z-0"
+                                  style={{
+                                    backgroundImage: `url('/event-background-gradient.png')`,
+                                  }}
+                                />
+                              )}
+
+                              {/* Logo SVG: ubyprotrail.svg centered */}
+                              <div className="absolute inset-0 flex items-center justify-center z-10">
+                                <img
+                                  src="/ubyprotrail.svg"
+                                  alt="UBYPROTRAIL"
+                                  className="w-2/3 max-w-xs h-auto opacity-90"
+                                />
                               </div>
-                            ) : (
-                              <div className="h-52 bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center relative">
-                                <Mountain className="h-16 w-16 text-primary/20" />
-                                <div className="absolute bottom-4 left-4">
-                                  <p className="text-gray-900 font-bold text-lg">
-                                    {event.name}
-                                  </p>
-                                </div>
+
+                              {/* Overlay */}
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent z-20" />
+                              <div className="absolute bottom-4 left-4 right-4 z-30">
+                                <p className="text-white font-bold text-lg">
+                                  {event.name}
+                                </p>
                               </div>
-                            )}
+                            </div>
 
                             <div className="p-5">
                               <div className="flex items-center gap-4 text-sm text-gray-600 mb-4">
@@ -1137,7 +1142,7 @@ export default function Landing() {
                                   className="bg-primary hover:bg-primary/90 text-white"
                                   onClick={(e: React.MouseEvent) => {
                                     e.preventDefault();
-                                    navigate(`/events/${event.id}`);
+                                    navigate(getEventUrl(event));
                                   }}
                                 >
                                   Ver detalles

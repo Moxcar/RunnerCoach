@@ -25,11 +25,12 @@ export default function Register() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
   const [registrationToken, setRegistrationToken] = useState<string | null>(
     null
   );
   const [coachId, setCoachId] = useState<string | null>(null);
-  const [linkType, setLinkType] = useState<'client' | 'coach' | null>(null);
+  const [linkType, setLinkType] = useState<"client" | "coach" | null>(null);
   const { signUp, signInWithGoogle } = useAuth();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -42,7 +43,7 @@ export default function Register() {
       // Validar token y obtener coach_id y tipo de enlace
       validateRegistrationTokenWithType(token)
         .then((result) => {
-          if (result.coachId !== null || result.linkType === 'coach') {
+          if (result.coachId !== null || result.linkType === "coach") {
             setCoachId(result.coachId);
             setLinkType(result.linkType);
           } else {
@@ -59,6 +60,7 @@ export default function Register() {
     e.preventDefault();
     setError("");
     setLoading(true);
+    setSuccess(false);
 
     try {
       // Determinar el rol según el tipo de enlace
@@ -88,7 +90,10 @@ export default function Register() {
                 .eq("id", user.id);
 
               if (profileError) {
-                console.error("Error actualizando perfil de coach:", profileError);
+                console.error(
+                  "Error actualizando perfil de coach:",
+                  profileError
+                );
               } else {
                 // Incrementar contador de uso del enlace
                 await incrementLinkUsage(registrationToken);
@@ -121,7 +126,9 @@ export default function Register() {
         }
       }
 
-      // La redirección se manejará automáticamente por RedirectIfAuthenticated
+      // Mostrar mensaje de éxito y detener carga
+      setSuccess(true);
+      setLoading(false);
     } catch (err: any) {
       setError(err.message || "Error al registrarse");
       setLoading(false);
@@ -158,71 +165,121 @@ export default function Register() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <div className="bg-destructive/10 text-destructive p-3 rounded-md text-sm">
-                  {error}
+            {success ? (
+              <div className="space-y-4 text-center">
+                <div className="mx-auto w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mb-4">
+                  <svg
+                    className="w-8 h-8 text-green-600 dark:text-green-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
                 </div>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="name">Nombre</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  placeholder="Tu nombre"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="tu@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Contraseña</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Registrando..." : "Registrarme"}
-              </Button>
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">O</span>
+                <h3 className="text-xl font-semibold">¡Registro exitoso!</h3>
+                <p className="text-muted-foreground">
+                  Te hemos enviado un correo de confirmación a{" "}
+                  <strong>{email}</strong>
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Por favor, revisa tu bandeja de entrada y haz clic en el
+                  enlace para confirmar tu cuenta. Si no lo encuentras, revisa
+                  tu carpeta de spam.
+                </p>
+                <div className="pt-4 space-y-2">
+                  <Button asChild variant="outline" className="w-full">
+                    <Link to="/login">Ir a iniciar sesión</Link>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full"
+                    onClick={() => {
+                      setSuccess(false);
+                      setEmail("");
+                      setPassword("");
+                      setName("");
+                    }}
+                  >
+                    Registrar otra cuenta
+                  </Button>
                 </div>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={handleGoogleSignIn}
-              >
-                Continuar con Google
-              </Button>
-              <div className="text-center text-sm text-muted-foreground">
-                ¿Ya tienes cuenta?{" "}
-                <Link to="/login" className="text-primary hover:underline">
-                  Inicia sesión aquí
-                </Link>
-              </div>
-            </form>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {error && (
+                  <div className="bg-destructive/10 text-destructive p-3 rounded-md text-sm">
+                    {error}
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nombre</Label>
+                  <Input
+                    id="name"
+                    type="text"
+                    placeholder="Tu nombre"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="tu@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Contraseña</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={6}
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Registrando..." : "Registrarme"}
+                </Button>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">
+                      O
+                    </span>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleGoogleSignIn}
+                >
+                  Continuar con Google
+                </Button>
+                <div className="text-center text-sm text-muted-foreground">
+                  ¿Ya tienes cuenta?{" "}
+                  <Link to="/login" className="text-primary hover:underline">
+                    Inicia sesión aquí
+                  </Link>
+                </div>
+              </form>
+            )}
           </CardContent>
         </Card>
       </motion.div>
