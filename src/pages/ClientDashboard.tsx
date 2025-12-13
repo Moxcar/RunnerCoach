@@ -68,11 +68,11 @@ function EventCard({ event }: { event: Event }) {
 
   return (
     <div
-      className="flex gap-3 sm:gap-4 p-3 sm:p-4 border rounded-lg hover:shadow-md hover:border-primary/30 transition-all cursor-pointer bg-card"
+      className="flex gap-2 sm:gap-3 md:gap-4 p-2 sm:p-3 md:p-4 border rounded-lg hover:shadow-md hover:border-primary/30 transition-all cursor-pointer bg-card"
       onClick={() => navigate(getEventUrl(event))}
     >
       {/* Imagen/Icono - tamaño aumentado */}
-      <div className="relative flex-shrink-0 w-24 h-24 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-lg overflow-hidden bg-gradient-to-br from-[#e9540d]/10 to-[#b07a1e]/10 border border-border/50">
+      <div className="relative flex-shrink-0 w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 lg:w-36 lg:h-36 rounded-lg overflow-hidden bg-gradient-to-br from-[#e9540d]/10 to-[#b07a1e]/10 border border-border/50">
         {isUltraBackyard ? (
           <>
             {/* Fondo para Ultra Backyard */}
@@ -87,7 +87,7 @@ function EventCard({ event }: { event: Event }) {
               <img
                 src="/ubyprotrail.svg"
                 alt="UBYPROTRAIL"
-                className="w-3/4 max-w-[80px] sm:max-w-[100px] h-auto opacity-90"
+                className="w-3/4 max-w-[60px] sm:max-w-[80px] md:max-w-[100px] h-auto opacity-90"
               />
             </div>
           </>
@@ -95,7 +95,7 @@ function EventCard({ event }: { event: Event }) {
           <>
             {imageLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#e9540d]/10 to-[#b07a1e]/10 z-10">
-                <Calendar className="h-6 w-6 sm:h-8 sm:w-8 text-[#e9540d]/30 animate-pulse" />
+                <Calendar className="h-5 w-5 sm:h-6 sm:w-6 md:h-8 md:w-8 text-[#e9540d]/30 animate-pulse" />
               </div>
             )}
             <img
@@ -114,30 +114,30 @@ function EventCard({ event }: { event: Event }) {
           </>
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <Calendar className="h-8 w-8 sm:h-10 sm:w-10 text-[#e9540d]/40" />
+            <Calendar className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10 text-[#e9540d]/40" />
           </div>
         )}
       </div>
 
       {/* Info del evento */}
       <div className="flex-1 min-w-0 flex flex-col justify-center">
-        <h4 className="font-semibold text-base sm:text-lg text-foreground line-clamp-2 mb-1.5">
+        <h4 className="font-semibold text-sm sm:text-base md:text-lg text-foreground line-clamp-2 mb-1 sm:mb-1.5">
           {event.name}
         </h4>
-        <div className="flex items-center gap-1.5 mt-1 text-sm text-muted-foreground">
-          <Calendar className="h-4 w-4 flex-shrink-0 text-primary/70" />
-          <span>
+        <div className="flex items-center gap-1 sm:gap-1.5 mt-0.5 sm:mt-1 text-xs sm:text-sm text-muted-foreground">
+          <Calendar className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0 text-primary/70" />
+          <span className="break-words">
             {format(new Date(event.date), "dd MMM yyyy", { locale: es })}
           </span>
         </div>
         {event.location && (
-          <div className="flex items-center gap-1.5 mt-1 text-sm text-muted-foreground">
-            <MapPin className="h-4 w-4 flex-shrink-0 text-primary/70" />
+          <div className="flex items-center gap-1 sm:gap-1.5 mt-0.5 sm:mt-1 text-xs sm:text-sm text-muted-foreground">
+            <MapPin className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0 text-primary/70" />
             <span className="truncate">{event.location}</span>
           </div>
         )}
-        <div className="mt-2">
-          <span className="text-sm sm:text-base font-bold">
+        <div className="mt-1.5 sm:mt-2">
+          <span className="text-xs sm:text-sm md:text-base font-bold">
             {event.price === 0 ? (
               <span className="text-green-600">Gratis</span>
             ) : (
@@ -151,7 +151,7 @@ function EventCard({ event }: { event: Event }) {
 
       {/* Flecha indicadora */}
       <div className="flex-shrink-0 flex items-center">
-        <ArrowRight className="h-4 w-4 text-muted-foreground" />
+        <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
       </div>
     </div>
   );
@@ -301,7 +301,12 @@ export default function ClientDashboard() {
         // Eventos próximos (futuros)
         const upcoming = uniqueRegistrations
           .map((r: any) => r.events)
-          .filter((e: any) => e && new Date(e.date) >= today)
+          .filter((e: any) => {
+            if (!e) return false;
+            const eventDate = new Date(e.date);
+            eventDate.setHours(0, 0, 0, 0);
+            return eventDate >= today;
+          })
           .sort(
             (a: any, b: any) =>
               new Date(a.date).getTime() - new Date(b.date).getTime()
@@ -311,7 +316,12 @@ export default function ClientDashboard() {
         // Eventos asistidos (pasados)
         const attended = uniqueRegistrations
           .map((r: any) => r.events)
-          .filter((e: any) => e && new Date(e.date) < today);
+          .filter((e: any) => {
+            if (!e) return false;
+            const eventDate = new Date(e.date);
+            eventDate.setHours(0, 0, 0, 0);
+            return eventDate < today;
+          });
 
         setUpcomingEvents(upcoming);
         setStats((prev) => ({
@@ -356,11 +366,11 @@ export default function ClientDashboard() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6 px-1 sm:px-0">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="grid gap-4 md:grid-cols-2 lg:grid-cols-4"
+          className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
         >
           {statCards.map((stat, index) => {
             const Icon = stat.icon;
@@ -370,16 +380,21 @@ export default function ClientDashboard() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
+                className="min-w-0"
               >
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">
+                <Card className="h-full">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+                    <CardTitle className="text-xs sm:text-sm font-medium truncate pr-2">
                       {stat.title}
                     </CardTitle>
-                    <Icon className={`h-4 w-4 ${stat.color}`} />
+                    <Icon
+                      className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${stat.color} flex-shrink-0`}
+                    />
                   </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{stat.value}</div>
+                  <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+                    <div className="text-xl sm:text-2xl font-bold break-words">
+                      {stat.value}
+                    </div>
                   </CardContent>
                 </Card>
               </motion.div>
@@ -387,57 +402,64 @@ export default function ClientDashboard() {
           })}
         </motion.div>
 
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
+            className="min-w-0"
           >
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Plan Actual</CardTitle>
+            <Card className="h-full">
+              <CardHeader className="pb-3 sm:pb-6">
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle className="text-base sm:text-lg">
+                    Plan Actual
+                  </CardTitle>
                   {currentPlan && (
                     <Link to="/client/plans">
-                      <Button variant="ghost" size="sm">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs sm:text-sm"
+                      >
                         Ver detalles
                       </Button>
                     </Link>
                   )}
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3 sm:space-y-4">
                 {currentPlan ? (
-                  <div className="space-y-4">
+                  <>
                     <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <Package className="h-5 w-5 text-primary" />
-                        <h3 className="text-lg font-semibold">
+                      <div className="flex items-center gap-2 mb-2 sm:mb-3">
+                        <Package className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0" />
+                        <h3 className="text-base sm:text-lg font-semibold break-words">
                           {currentPlan.name}
                         </h3>
                       </div>
                       {currentPlan.features &&
                         currentPlan.features.length > 0 && (
-                          <div className="space-y-2">
-                            <p className="text-sm font-medium text-muted-foreground mb-2">
+                          <div className="space-y-1.5 sm:space-y-2">
+                            <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1.5 sm:mb-2">
                               Características:
                             </p>
-                            <ul className="space-y-1.5">
+                            <ul className="space-y-1 sm:space-y-1.5">
                               {currentPlan.features
                                 .slice(0, 4)
                                 .map((feature, idx) => (
                                   <li
                                     key={idx}
-                                    className="flex items-start gap-2 text-sm"
+                                    className="flex items-start gap-1.5 sm:gap-2 text-xs sm:text-sm"
                                   >
-                                    <CheckCircle className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
-                                    <span className="text-muted-foreground">
+                                    <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary flex-shrink-0 mt-0.5" />
+                                    <span className="text-muted-foreground break-words">
                                       {feature}
                                     </span>
                                   </li>
                                 ))}
                               {currentPlan.features.length > 4 && (
-                                <li className="text-xs text-muted-foreground pl-6">
+                                <li className="text-xs text-muted-foreground pl-5 sm:pl-6">
                                   +{currentPlan.features.length - 4} más
                                 </li>
                               )}
@@ -446,41 +468,44 @@ export default function ClientDashboard() {
                         )}
                     </div>
                     {stats.nextPaymentDate && (
-                      <div className="pt-3 border-t">
-                        <p className="text-sm text-muted-foreground">
+                      <div className="pt-2 sm:pt-3 border-t">
+                        <p className="text-xs sm:text-sm text-muted-foreground">
                           Próximo pago:
                         </p>
-                        <p className="text-base font-semibold">
+                        <p className="text-sm sm:text-base font-semibold break-words">
                           {format(stats.nextPaymentDate, "dd 'de' MMMM yyyy", {
                             locale: es,
                           })}
                         </p>
                       </div>
                     )}
-                    <div className="pt-3">
+                    <div className="pt-2 sm:pt-3">
                       <Link to="/client/plans">
-                        <Button variant="outline" className="w-full">
+                        <Button
+                          variant="outline"
+                          className="w-full text-xs sm:text-sm py-2 sm:py-2.5"
+                        >
                           Gestionar Plan
                         </Button>
                       </Link>
                     </div>
-                  </div>
+                  </>
                 ) : (
-                  <div className="space-y-4 text-center py-4">
-                    <Package className="h-12 w-12 text-muted-foreground mx-auto" />
+                  <div className="space-y-3 sm:space-y-4 text-center py-2 sm:py-4">
+                    <Package className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground mx-auto" />
                     <div>
-                      <p className="text-sm text-muted-foreground mb-2">
+                      <p className="text-xs sm:text-sm text-muted-foreground mb-1.5 sm:mb-2">
                         No tienes un plan activo
                       </p>
-                      <p className="text-sm text-muted-foreground mb-4">
+                      <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">
                         Elige un plan para comenzar tu entrenamiento
                       </p>
                       <Button
                         onClick={() => navigate("/client/plans")}
-                        className="w-full"
+                        className="w-full text-xs sm:text-sm py-2 sm:py-2.5"
                       >
                         Elegir Plan
-                        <ArrowRight className="h-4 w-4 ml-2" />
+                        <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 ml-2" />
                       </Button>
                     </div>
                   </div>
@@ -493,13 +518,20 @@ export default function ClientDashboard() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
+            className="min-w-0"
           >
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Próximos eventos</CardTitle>
+            <Card className="h-full">
+              <CardHeader className="pb-3 sm:pb-6">
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle className="text-base sm:text-lg">
+                    Próximos eventos
+                  </CardTitle>
                   <Link to="/client/events">
-                    <Button variant="ghost" size="sm">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs sm:text-sm"
+                    >
                       Ver todos
                     </Button>
                   </Link>
@@ -507,11 +539,11 @@ export default function ClientDashboard() {
               </CardHeader>
               <CardContent>
                 {upcomingEvents.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-xs sm:text-sm text-muted-foreground">
                     No tienes eventos próximos
                   </p>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2 sm:space-y-3">
                     {upcomingEvents.map((event) => (
                       <EventCard key={event.id} event={event} />
                     ))}

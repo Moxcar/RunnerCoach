@@ -460,19 +460,19 @@ export default function ClientPlans() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6 px-1 sm:px-0">
         <div>
           <motion.div
-            className="flex items-center gap-3 mb-4"
+            className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4"
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
           >
-            <Package className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
+            <Package className="h-6 w-6 sm:h-8 sm:w-8 text-primary flex-shrink-0" />
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
               Planes de Suscripción
             </h1>
           </motion.div>
-          <p className="text-muted-foreground">
+          <p className="text-xs sm:text-sm text-muted-foreground">
             Elige el plan perfecto para alcanzar tus objetivos de running
           </p>
         </div>
@@ -495,54 +495,63 @@ export default function ClientPlans() {
             className="relative"
           >
             <Card className="border-2 border-primary/40 bg-gradient-to-br from-primary/10 via-card/90 to-secondary/10 backdrop-blur-xl shadow-2xl overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-full blur-3xl" />
-              <CardHeader className="relative z-10">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-3 rounded-xl bg-gradient-to-br from-primary to-secondary shadow-lg">
-                      <CheckCircle className="h-6 w-6 text-white" />
+              <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-full blur-3xl" />
+              <CardHeader className="relative z-10 p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                    <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-primary to-secondary shadow-lg flex-shrink-0">
+                      <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                     </div>
-                    <div>
-                      <CardTitle className="text-2xl">
-                        Plan Actual: {currentPlan.plan.name}
+                    <div className="min-w-0 flex-1">
+                      <CardTitle className="text-lg sm:text-xl md:text-2xl break-words">
+                        <span className="hidden sm:inline">Plan Actual: </span>
+                        <span className="sm:hidden">Actual: </span>
+                        {currentPlan.plan.name}
                       </CardTitle>
-                      <p className="text-muted-foreground mt-1">
+                      <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                         Estás suscrito a este plan
                       </p>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                     <Button
                       onClick={() => setIsPaymentDialogOpen(true)}
                       disabled={loading || !coachId}
-                      className="bg-primary hover:bg-primary/90"
+                      className="bg-primary hover:bg-primary/90 text-xs sm:text-sm py-2 sm:py-2.5 w-full sm:w-auto"
                     >
-                      <CreditCard className="h-4 w-4 mr-2" />
-                      Pagar Plan Mensual
+                      <CreditCard className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                      <span className="hidden sm:inline">
+                        Pagar Plan Mensual
+                      </span>
+                      <span className="sm:hidden">Pagar Plan</span>
                     </Button>
                     <Button
                       variant="outline"
                       onClick={handleCancelPlan}
                       disabled={loading}
-                      className="border-destructive/30 hover:bg-destructive/10"
+                      className="border-destructive/30 hover:bg-destructive/10 text-xs sm:text-sm py-2 sm:py-2.5 w-full sm:w-auto"
                     >
                       Cancelar Plan
                     </Button>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="relative z-10">
-                <div className="flex items-baseline gap-2 mb-4">
-                  <span className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+              <CardContent className="relative z-10 p-4 sm:p-6 pt-0 sm:pt-0">
+                <div className="flex items-baseline gap-1.5 sm:gap-2 mb-3 sm:mb-4">
+                  <span className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                     ${currentPlan.plan.cost.toFixed(2)} MXN
                   </span>
-                  <span className="text-muted-foreground">/mes</span>
+                  <span className="text-xs sm:text-sm text-muted-foreground">
+                    /mes
+                  </span>
                 </div>
-                <ul className="space-y-3">
+                <ul className="space-y-2 sm:space-y-3">
                   {currentPlan.plan.features.map((feature, idx) => (
-                    <li key={idx} className="flex items-start gap-3">
-                      <Check className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                      <span className="text-muted-foreground">{feature}</span>
+                    <li key={idx} className="flex items-start gap-2 sm:gap-3">
+                      <Check className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0 mt-0.5" />
+                      <span className="text-xs sm:text-sm text-muted-foreground break-words">
+                        {feature}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -554,12 +563,12 @@ export default function ClientPlans() {
         {/* Available Plans */}
         <div>
           <motion.div
-            className="flex items-center gap-3 mb-6"
+            className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <Sparkles className="h-6 w-6 text-secondary" />
-            <h2 className="text-2xl font-bold">
+            <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-secondary flex-shrink-0" />
+            <h2 className="text-lg sm:text-xl md:text-2xl font-bold">
               {currentPlan?.plan ? "Cambiar de Plan" : "Planes Disponibles"}
             </h2>
           </motion.div>
@@ -573,7 +582,7 @@ export default function ClientPlans() {
               No hay planes disponibles en este momento
             </div>
           ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
               {plans.map((plan, index) => {
                 const isCurrentPlan = currentPlan?.plan_id === plan.id;
                 const isPopular = index === Math.floor(plans.length / 2);
@@ -603,23 +612,25 @@ export default function ClientPlans() {
                       }`}
                     >
                       <div className="absolute inset-0 bg-gradient-to-br from-primary/0 via-primary/5 to-secondary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                      <CardHeader className="relative z-10">
-                        <CardTitle className="text-2xl mb-2">
+                      <CardHeader className="relative z-10 p-4 sm:p-6">
+                        <CardTitle className="text-xl sm:text-2xl mb-2 break-words">
                           {plan.name}
                         </CardTitle>
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                        <div className="flex items-baseline gap-1.5 sm:gap-2">
+                          <span className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                             ${plan.cost.toFixed(2)} MXN
                           </span>
-                          <span className="text-muted-foreground">/mes</span>
+                          <span className="text-xs sm:text-sm text-muted-foreground">
+                            /mes
+                          </span>
                         </div>
                       </CardHeader>
-                      <CardContent className="relative z-10">
-                        <ul className="space-y-4 mb-8">
+                      <CardContent className="relative z-10 p-4 sm:p-6 pt-0 sm:pt-0">
+                        <ul className="space-y-2 sm:space-y-3 md:space-y-4 mb-6 sm:mb-8">
                           {plan.features.map((feature, idx) => (
                             <motion.li
                               key={idx}
-                              className="flex items-start gap-3"
+                              className="flex items-start gap-2 sm:gap-3"
                               initial={{ opacity: 0, x: -20 }}
                               animate={{ opacity: 1, x: 0 }}
                               transition={{
@@ -627,8 +638,8 @@ export default function ClientPlans() {
                                 delay: index * 0.1 + idx * 0.05,
                               }}
                             >
-                              <CheckCircle className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                              <span className="text-muted-foreground">
+                              <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0 mt-0.5" />
+                              <span className="text-xs sm:text-sm text-muted-foreground break-words">
                                 {feature}
                               </span>
                             </motion.li>
@@ -636,15 +647,15 @@ export default function ClientPlans() {
                         </ul>
                         {isCurrentPlan ? (
                           <Button
-                            className="w-full bg-green-500 hover:bg-green-600"
+                            className="w-full bg-green-500 hover:bg-green-600 text-xs sm:text-sm py-2 sm:py-2.5"
                             disabled
                           >
-                            <CheckCircle className="h-4 w-4 mr-2" />
+                            <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
                             Plan Actual
                           </Button>
                         ) : (
                           <Button
-                            className={`w-full group/btn ${
+                            className={`w-full group/btn text-xs sm:text-sm py-2 sm:py-2.5 ${
                               isPopular
                                 ? "bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90"
                                 : ""
@@ -652,10 +663,15 @@ export default function ClientPlans() {
                             variant={isPopular ? "default" : "outline"}
                             onClick={() => handleSelectPlan(plan)}
                           >
-                            {currentPlan?.plan
-                              ? "Cambiar a este Plan"
-                              : "Elegir Plan"}
-                            <ArrowRight className="h-4 w-4 ml-2 group-hover/btn:translate-x-1 transition-transform" />
+                            <span className="hidden sm:inline">
+                              {currentPlan?.plan
+                                ? "Cambiar a este Plan"
+                                : "Elegir Plan"}
+                            </span>
+                            <span className="sm:hidden">
+                              {currentPlan?.plan ? "Cambiar" : "Elegir"}
+                            </span>
+                            <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 ml-1.5 sm:ml-2 group-hover/btn:translate-x-1 transition-transform" />
                           </Button>
                         )}
                       </CardContent>

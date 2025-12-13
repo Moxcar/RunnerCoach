@@ -280,12 +280,21 @@ export default function AdminEvents() {
     }
   };
 
-  const upcomingEvents = events.filter(
-    (event) => new Date(event.date) >= new Date()
-  );
-  const pastEvents = events.filter(
-    (event) => new Date(event.date) < new Date()
-  );
+  // Normalizar fecha de hoy a medianoche para comparar solo fechas
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const upcomingEvents = events.filter((event) => {
+    const eventDate = new Date(event.date);
+    eventDate.setHours(0, 0, 0, 0);
+    return eventDate >= today;
+  });
+
+  const pastEvents = events.filter((event) => {
+    const eventDate = new Date(event.date);
+    eventDate.setHours(0, 0, 0, 0);
+    return eventDate < today;
+  });
 
   return (
     <DashboardLayout>
