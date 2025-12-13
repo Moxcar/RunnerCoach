@@ -91,7 +91,9 @@ export default function Clients() {
       setLoading(true);
       const { data: clientsData, error: clientsError } = await supabase
         .from("clients")
-        .select("id, name, email, phone, payment_status, notes, plan_id, plans(id, name, cost)")
+        .select(
+          "id, name, email, phone, payment_status, notes, plan_id, plans(id, name, cost)"
+        )
         .eq("coach_id", user.id)
         .order("created_at", { ascending: false });
 
@@ -228,8 +230,8 @@ export default function Clients() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="flex-1 max-w-sm">
+        <div className="flex flex-col gap-4">
+          <div className="w-full sm:max-w-sm">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -240,12 +242,17 @@ export default function Clients() {
               />
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Dialog open={isLinkDialogOpen} onOpenChange={setIsLinkDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline">
-                  <LinkIcon className="h-4 w-4 mr-2" />
-                  Enlaces de Registro
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs sm:text-sm"
+                >
+                  <LinkIcon className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Enlaces de Registro</span>
+                  <span className="sm:hidden">Enlaces</span>
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
@@ -334,8 +341,8 @@ export default function Clients() {
               </DialogContent>
             </Dialog>
             <Select value={filter} onValueChange={setFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filtrar por estado" />
+              <SelectTrigger className="w-[140px] sm:w-[180px] text-xs sm:text-sm">
+                <SelectValue placeholder="Filtrar" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
@@ -346,9 +353,10 @@ export default function Clients() {
             </Select>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Agregar cliente
+                <Button size="sm" className="text-xs sm:text-sm">
+                  <Plus className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Agregar cliente</span>
+                  <span className="sm:hidden">Agregar</span>
                 </Button>
               </DialogTrigger>
               <DialogContent>

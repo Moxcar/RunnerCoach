@@ -240,16 +240,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
         {/* Main content */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          <header className="bg-card border-b p-4 flex items-center gap-4">
+          <header className="bg-card border-b p-3 sm:p-4 flex items-center gap-3 sm:gap-4">
             <Button
               variant="ghost"
               size="icon"
-              className="md:hidden"
+              className="md:hidden flex-shrink-0"
               onClick={() => setSidebarOpen(!sidebarOpen)}
             >
               {sidebarOpen ? <X /> : <Menu />}
             </Button>
-            <h1 className="text-2xl font-semibold">
+            <h1 className="text-lg sm:text-xl md:text-2xl font-semibold truncate">
               {menuItems.find((item) => item.path === location.pathname)
                 ?.label || "Dashboard"}
             </h1>
@@ -260,26 +260,25 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <motion.div
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-orange-50 border-b border-orange-200 px-6 py-4"
+              className="bg-orange-50 border-b border-orange-200 px-4 sm:px-6 py-3 sm:py-4"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <AlertCircle className="h-5 w-5 text-orange-600 flex-shrink-0" />
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start sm:items-center gap-2 sm:gap-3">
+                  <AlertCircle className="h-5 w-5 text-orange-600 flex-shrink-0 mt-0.5 sm:mt-0" />
                   <div>
-                    <p className="font-semibold text-orange-900">
+                    <p className="font-semibold text-orange-900 text-sm sm:text-base">
                       Pago del plan pendiente
                     </p>
-                    <p className="text-sm text-orange-700">
+                    <p className="text-xs sm:text-sm text-orange-700">
                       Te falta pagar tu plan mensual{" "}
-                      <strong>{planInfo.planName}</strong> ( $
-                      {planInfo.planCost.toLocaleString()} MXN). Realiza el pago
-                      desde la sección de Planes.
+                      <strong>{planInfo.planName}</strong> ($
+                      {planInfo.planCost.toLocaleString()} MXN).
                     </p>
                   </div>
                 </div>
                 <Button
                   onClick={() => navigate("/client/plans")}
-                  className="bg-orange-600 hover:bg-orange-700 text-white"
+                  className="bg-orange-600 hover:bg-orange-700 text-white w-full sm:w-auto"
                   size="sm"
                 >
                   Ir a Planes
@@ -288,7 +287,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </motion.div>
           )}
 
-          <main className="flex-1 overflow-y-auto p-6">{children}</main>
+          <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
         </div>
       </div>
     </div>

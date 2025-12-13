@@ -752,24 +752,32 @@ export default function EventDetail() {
     <div className="min-h-screen bg-background">
       {/* Navigation Bar */}
       <nav className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="container mx-auto px-4 py-3 sm:py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <img src={logo} alt="RunnerCoach" className="h-8" />
+            <img src={logo} alt="RunnerCoach" className="h-6 sm:h-8" />
           </Link>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             {user ? (
               <Button
                 variant="ghost"
+                size="sm"
                 onClick={() => navigate("/client/dashboard")}
               >
-                Dashboard
+                <span className="hidden sm:inline">Dashboard</span>
+                <span className="sm:hidden">Inicio</span>
               </Button>
             ) : (
               <>
-                <Button variant="ghost" asChild>
-                  <Link to="/login">Iniciar sesión</Link>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to="/login" className="text-xs sm:text-sm">
+                    Entrar
+                  </Link>
                 </Button>
-                <Button asChild className="bg-[#e9540d] hover:bg-[#d14a0b]">
+                <Button
+                  size="sm"
+                  asChild
+                  className="bg-[#e9540d] hover:bg-[#d14a0b] text-xs sm:text-sm"
+                >
                   <Link to="/register">Registrarse</Link>
                 </Button>
               </>
@@ -851,7 +859,7 @@ export default function EventDetail() {
             </motion.div>
 
             <motion.h1
-              className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-9xl font-black mb-6 md:mb-8 text-white leading-[0.9] tracking-tighter px-4"
+              className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-black mb-4 sm:mb-6 md:mb-8 text-white leading-[0.9] tracking-tighter px-4"
               initial={{ opacity: 0, y: 50 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.4 }}
@@ -868,7 +876,7 @@ export default function EventDetail() {
 
             {event.event_type === "ultra_backyard" ? (
               <motion.p
-                className="text-2xl md:text-3xl lg:text-4xl text-white/95 max-w-3xl mx-auto mb-12 leading-relaxed font-bold drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]"
+                className="text-lg sm:text-xl md:text-2xl lg:text-3xl text-white/95 max-w-3xl mx-auto mb-8 sm:mb-12 leading-relaxed font-bold drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)] px-4"
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 0.6 }}
@@ -877,13 +885,13 @@ export default function EventDetail() {
                 <br />
                 <span className="text-[#e9540d]">Tu reto personal.</span>
                 <br />
-                <span className="text-xl md:text-2xl">
+                <span className="text-base sm:text-lg md:text-xl">
                   ¿Por cuántas vueltas vas?
                 </span>
               </motion.p>
             ) : (
               <motion.p
-                className="text-xl md:text-2xl lg:text-3xl text-white/90 max-w-3xl mx-auto mb-12 leading-relaxed font-semibold drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]"
+                className="text-base sm:text-lg md:text-xl lg:text-2xl text-white/90 max-w-3xl mx-auto mb-8 sm:mb-12 leading-relaxed font-semibold drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)] px-4"
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 0.6 }}
@@ -1848,35 +1856,38 @@ export default function EventDetail() {
             className="text-center mb-8"
           >
             <Card className="bg-gradient-to-r from-[#e9540d] to-[#d14a0b] border-0 shadow-2xl">
-              <CardContent className="p-6 md:p-8">
-                <h3 className="text-2xl md:text-3xl font-black text-white mb-2">
+              <CardContent className="p-4 sm:p-6 md:p-8">
+                <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-white mb-2">
                   ¿Cuál será tu límite?
                 </h3>
-                <p className="text-base md:text-lg text-white/90 mb-6">
+                <p className="text-sm sm:text-base md:text-lg text-white/90 mb-4 sm:mb-6">
                   Únete a la comunidad de corredores que buscan superarse
                 </p>
                 {!isFull ? (
                   <>
                     {isRegistered ? (
-                      <Badge className="bg-green-500 text-white border-0 px-8 py-3 text-lg">
-                        <CheckCircle className="h-6 w-6 mr-2" />
+                      <Badge className="bg-green-500 text-white border-0 px-4 sm:px-8 py-2 sm:py-3 text-sm sm:text-lg">
+                        <CheckCircle className="h-4 w-4 sm:h-6 sm:w-6 mr-2" />
                         Ya estás inscrito
                       </Badge>
                     ) : (
                       <Button
                         size="lg"
-                        className="bg-white text-[#e9540d] hover:bg-orange-50 font-black px-12 py-6 text-xl shadow-lg"
+                        className="bg-white text-[#e9540d] hover:bg-orange-50 font-black px-6 sm:px-12 py-4 sm:py-6 text-base sm:text-xl shadow-lg w-full sm:w-auto"
                         onClick={handleRegister}
                         disabled={registering}
                       >
                         {event.external_registration_url ? (
                           <>
-                            <ExternalLink className="h-6 w-6 mr-3" />
-                            REGISTRARME EXTERNO
+                            <ExternalLink className="h-5 w-5 sm:h-6 sm:w-6 mr-2 sm:mr-3" />
+                            <span className="hidden sm:inline">
+                              REGISTRARME EXTERNO
+                            </span>
+                            <span className="sm:hidden">REGISTRO EXTERNO</span>
                           </>
                         ) : (
                           <>
-                            <Zap className="h-6 w-6 mr-3" />
+                            <Zap className="h-5 w-5 sm:h-6 sm:w-6 mr-2 sm:mr-3" />
                             {registering
                               ? "Registrando..."
                               : "INSCRIBIRME AHORA"}
@@ -1886,7 +1897,7 @@ export default function EventDetail() {
                     )}
                   </>
                 ) : (
-                  <Badge className="bg-white/20 text-white border-white/30 px-8 py-3 text-lg">
+                  <Badge className="bg-white/20 text-white border-white/30 px-4 sm:px-8 py-2 sm:py-3 text-sm sm:text-lg">
                     Evento lleno - Gracias por tu interés
                   </Badge>
                 )}

@@ -530,13 +530,16 @@ export default function Events() {
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button
+                size="sm"
+                className="text-xs sm:text-sm"
                 onClick={() => {
                   resetForm();
                   setIsDialogOpen(true);
                 }}
               >
-                <Plus className="h-4 w-4 mr-2" />
-                Crear evento
+                <Plus className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Crear evento</span>
+                <span className="sm:hidden ml-1">Crear</span>
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -808,22 +811,26 @@ export default function Events() {
                         </div>
                       )}
                     </div>
-                    <div className="flex gap-2 mt-4">
+                    <div className="flex flex-col sm:flex-row gap-2 mt-4">
                       <Button
                         variant="outline"
+                        size="sm"
                         className="flex-1"
                         onClick={() => navigate(getEventUrl(event))}
                       >
-                        <Eye className="h-4 w-4 mr-2" />
-                        Ver detalles
+                        <Eye className="h-4 w-4 mr-1 sm:mr-2" />
+                        <span className="text-xs sm:text-sm">Ver detalles</span>
                       </Button>
                       <Button
                         variant="outline"
+                        size="sm"
                         className="flex-1"
                         onClick={() => handleViewRegistrations(event)}
                       >
-                        <Users className="h-4 w-4 mr-2" />
-                        Ver inscritos ({event.registered_clients})
+                        <Users className="h-4 w-4 mr-1 sm:mr-2" />
+                        <span className="text-xs sm:text-sm">
+                          Inscritos ({event.registered_clients})
+                        </span>
                       </Button>
                     </div>
                   </div>

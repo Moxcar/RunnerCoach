@@ -1,5 +1,10 @@
 import { Link, useNavigate } from "react-router-dom";
-import { motion, useScroll, useTransform } from "framer-motion";
+import {
+  motion,
+  useScroll,
+  useTransform,
+  AnimatePresence,
+} from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -17,6 +22,8 @@ import {
   Star,
   Quote,
   ChevronDown,
+  Menu,
+  X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -63,6 +70,7 @@ export default function Landing() {
   const navigate = useNavigate();
   const [events, setEvents] = useState<Event[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
 
   const { scrollYProgress } = useScroll({
@@ -192,10 +200,12 @@ export default function Landing() {
     <div className="min-h-screen bg-white overflow-x-hidden">
       {/* Fixed Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-sm border-b border-gray-100">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center">
-            <img src={logo} alt="RunnerCoach" className="h-10" />
+            <img src={logo} alt="RunnerCoach" className="h-8 sm:h-10" />
           </Link>
+
+          {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-600">
             <a
               href="#benefits"
@@ -216,7 +226,9 @@ export default function Landing() {
               Eventos
             </a>
           </div>
-          <div className="flex items-center gap-3">
+
+          {/* Desktop Auth Buttons */}
+          <div className="hidden md:flex items-center gap-3">
             <Link to="/login">
               <Button
                 variant="ghost"
@@ -231,7 +243,70 @@ export default function Landing() {
               </Button>
             </Link>
           </div>
+
+          {/* Mobile Menu Button */}
+          <button
+            className="md:hidden p-2 text-gray-700 hover:text-primary transition-colors"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Menú"
+          >
+            {mobileMenuOpen ? (
+              <X className="h-6 w-6" />
+            ) : (
+              <Menu className="h-6 w-6" />
+            )}
+          </button>
         </div>
+
+        {/* Mobile Menu */}
+        <AnimatePresence>
+          {mobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="md:hidden bg-white border-t border-gray-100 overflow-hidden"
+            >
+              <div className="container mx-auto px-4 py-4 space-y-4">
+                <div className="flex flex-col space-y-3">
+                  <a
+                    href="#benefits"
+                    className="text-gray-700 hover:text-primary font-medium py-2 transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Beneficios
+                  </a>
+                  <a
+                    href="#coaches"
+                    className="text-gray-700 hover:text-primary font-medium py-2 transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Coaches
+                  </a>
+                  <a
+                    href="#events"
+                    className="text-gray-700 hover:text-primary font-medium py-2 transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Eventos
+                  </a>
+                </div>
+                <div className="flex flex-col gap-2 pt-3 border-t border-gray-100">
+                  <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
+                    <Button variant="outline" className="w-full">
+                      Entrar
+                    </Button>
+                  </Link>
+                  <Link to="/register" onClick={() => setMobileMenuOpen(false)}>
+                    <Button className="w-full bg-primary hover:bg-primary/90 text-white">
+                      Encontrar Coach
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </nav>
 
       <main>
@@ -378,7 +453,7 @@ export default function Landing() {
             style={{ y: heroY, opacity: heroOpacity }}
           >
             <motion.h1
-              className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-9xl font-black text-white leading-[0.9] mb-8 tracking-tighter"
+              className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-black text-white leading-[0.9] mb-6 sm:mb-8 tracking-tighter"
               initial={{ opacity: 0, y: 50 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.3 }}
@@ -395,38 +470,38 @@ export default function Landing() {
             </motion.h1>
 
             <motion.p
-              className="text-xl md:text-2xl lg:text-3xl text-white/90 max-w-3xl mx-auto mb-12 leading-relaxed font-semibold drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]"
+              className="text-base sm:text-lg md:text-xl lg:text-2xl text-white/90 max-w-3xl mx-auto mb-8 sm:mb-12 leading-relaxed font-semibold drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)] px-4"
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.5 }}
             >
               Cada cima que conquistas, cada kilómetro que dueles,
-              <br />
+              <br className="hidden sm:block" />
               <span className="text-primary">
                 un coach te guía hacia tu mejor versión.
               </span>
             </motion.p>
 
             <motion.div
-              className="flex flex-col sm:flex-row gap-4 justify-center items-center"
+              className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-center px-4"
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.7 }}
             >
-              <Link to="/register">
+              <Link to="/register" className="w-full sm:w-auto">
                 <Button
                   size="lg"
-                  className="bg-primary hover:bg-primary/90 text-white text-lg px-12 py-7 shadow-2xl shadow-primary/40 group font-bold uppercase tracking-wide"
+                  className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-white text-base sm:text-lg px-8 sm:px-12 py-6 sm:py-7 shadow-2xl shadow-primary/40 group font-bold uppercase tracking-wide"
                 >
                   Encontrar mi coach
                   <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </Link>
-              <a href="#benefits">
+              <a href="#benefits" className="w-full sm:w-auto">
                 <Button
                   size="lg"
                   variant="outline"
-                  className="bg-white/20 backdrop-blur-md border-2 border-white/60 text-white hover:bg-white/30 hover:border-white/80 text-lg px-10 py-7 font-bold shadow-lg"
+                  className="w-full sm:w-auto bg-white/20 backdrop-blur-md border-2 border-white/60 text-white hover:bg-white/30 hover:border-white/80 text-base sm:text-lg px-8 sm:px-10 py-6 sm:py-7 font-bold shadow-lg"
                 >
                   Ver cómo funciona
                 </Button>
@@ -435,7 +510,7 @@ export default function Landing() {
 
             {/* Stats overlay - showing passion/effort */}
             <motion.div
-              className="mt-16 flex flex-wrap justify-center gap-8 md:gap-12 items-baseline"
+              className="mt-10 sm:mt-16 flex flex-wrap justify-center gap-6 sm:gap-8 md:gap-12 items-baseline px-4"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 1 }}
@@ -445,14 +520,10 @@ export default function Landing() {
                 { value: "150+", label: "Coaches expertos" },
               ].map((stat) => (
                 <div key={stat.label} className="text-center">
-                  <p className="text-3xl md:text-4xl font-black text-white drop-shadow-lg leading-none flex items-center justify-center h-[3rem] md:h-[4rem]">
-                    {stat.symbol ? (
-                      <span className="text-3xl md:text-4xl">∞</span>
-                    ) : (
-                      stat.value
-                    )}
+                  <p className="text-2xl sm:text-3xl md:text-4xl font-black text-white drop-shadow-lg leading-none flex items-center justify-center h-[2.5rem] sm:h-[3rem] md:h-[4rem]">
+                    {stat.value}
                   </p>
-                  <p className="text-sm md:text-base text-white/70 font-medium mt-1">
+                  <p className="text-xs sm:text-sm md:text-base text-white/70 font-medium mt-1">
                     {stat.label}
                   </p>
                 </div>
@@ -477,26 +548,29 @@ export default function Landing() {
         </section>
 
         {/* BENEFITS - Results Focused */}
-        <section id="benefits" className="py-24 md:py-32 px-6 bg-white">
+        <section
+          id="benefits"
+          className="py-16 sm:py-24 md:py-32 px-4 sm:px-6 bg-white"
+        >
           <div className="container mx-auto max-w-6xl">
             <motion.div
-              className="text-center mb-20"
+              className="text-center mb-12 sm:mb-20"
               initial="initial"
               whileInView="animate"
               viewport={{ once: true }}
               variants={fadeUp}
             >
-              <h2 className="text-4xl md:text-5xl lg:text-6xl font-black text-gray-900 mb-6">
+              <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-gray-900 mb-4 sm:mb-6 px-2">
                 RESULTADOS QUE <span className="text-primary">IMPORTAN</span>
               </h2>
-              <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              <p className="text-base sm:text-lg md:text-xl text-gray-600 max-w-2xl mx-auto px-4">
                 No hablamos de funciones. Hablamos de lo que realmente quieres
                 lograr.
               </p>
             </motion.div>
 
             <motion.div
-              className="grid md:grid-cols-3 gap-8"
+              className="grid gap-6 sm:gap-8 sm:grid-cols-2 lg:grid-cols-3"
               initial="initial"
               whileInView="animate"
               viewport={{ once: true }}
@@ -510,23 +584,23 @@ export default function Landing() {
                     className="group"
                     variants={fadeUp}
                   >
-                    <div className="bg-gray-50 hover:bg-gradient-to-br hover:from-primary/5 hover:to-secondary/5 rounded-3xl p-8 h-full border border-gray-100 hover:border-primary/20 transition-all duration-300">
-                      <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 group-hover:bg-primary/20 transition-colors">
-                        <Icon className="h-8 w-8 text-primary" />
+                    <div className="bg-gray-50 hover:bg-gradient-to-br hover:from-primary/5 hover:to-secondary/5 rounded-2xl sm:rounded-3xl p-6 sm:p-8 h-full border border-gray-100 hover:border-primary/20 transition-all duration-300">
+                      <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-primary/10 flex items-center justify-center mb-4 sm:mb-6 group-hover:bg-primary/20 transition-colors">
+                        <Icon className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
                       </div>
 
-                      <h3 className="text-2xl font-bold text-gray-900 mb-3">
+                      <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2 sm:mb-3">
                         {benefit.title}
                       </h3>
-                      <p className="text-gray-600 mb-6 leading-relaxed">
+                      <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6 leading-relaxed">
                         {benefit.description}
                       </p>
 
-                      <div className="pt-6 border-t border-gray-200">
-                        <p className="text-4xl font-black text-primary">
+                      <div className="pt-4 sm:pt-6 border-t border-gray-200">
+                        <p className="text-3xl sm:text-4xl font-black text-primary">
                           {benefit.stat}
                         </p>
-                        <p className="text-sm text-gray-500 font-medium">
+                        <p className="text-xs sm:text-sm text-gray-500 font-medium">
                           {benefit.statLabel}
                         </p>
                       </div>
@@ -541,25 +615,25 @@ export default function Landing() {
         {/* SOCIAL PROOF - Dark Immersive Section */}
         <section
           id="coaches"
-          className="py-24 md:py-32 px-6 bg-gray-900 relative overflow-hidden"
+          className="py-16 sm:py-24 md:py-32 px-4 sm:px-6 bg-gray-900 relative overflow-hidden"
         >
           {/* Background accent */}
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent" />
-          <div className="absolute bottom-0 right-0 w-96 h-96 bg-secondary/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 right-0 w-48 sm:w-96 h-48 sm:h-96 bg-secondary/10 rounded-full blur-3xl" />
 
           <div className="container mx-auto max-w-6xl relative z-10">
             <motion.div
-              className="mb-16"
+              className="mb-10 sm:mb-16"
               initial="initial"
               whileInView="animate"
               viewport={{ once: true }}
               variants={fadeUp}
             >
-              <Badge className="mb-6 bg-secondary/20 text-secondary border-secondary/30 px-4 py-1.5">
-                <Trophy className="h-4 w-4 mr-2" />
+              <Badge className="mb-4 sm:mb-6 bg-secondary/20 text-secondary border-secondary/30 px-3 sm:px-4 py-1 sm:py-1.5 text-xs sm:text-sm">
+                <Trophy className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                 Historias de éxito
               </Badge>
-              <h2 className="text-4xl md:text-5xl lg:text-6xl font-black text-white mb-6">
+              <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-white mb-4 sm:mb-6">
                 RUNNERS COMO TÚ
                 <br />
                 <span className="text-secondary">ALCANZANDO METAS</span>
@@ -567,7 +641,7 @@ export default function Landing() {
             </motion.div>
 
             <motion.div
-              className="grid md:grid-cols-3 gap-6"
+              className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3"
               initial="initial"
               whileInView="animate"
               viewport={{ once: true }}
@@ -579,21 +653,21 @@ export default function Landing() {
                   className="relative"
                   variants={fadeUp}
                 >
-                  <div className="bg-gray-800/50 backdrop-blur border border-gray-700/50 rounded-2xl p-6 h-full hover:border-secondary/30 transition-colors">
-                    <Quote className="h-8 w-8 text-secondary/50 mb-4" />
-                    <p className="text-gray-300 mb-6 leading-relaxed italic">
+                  <div className="bg-gray-800/50 backdrop-blur border border-gray-700/50 rounded-xl sm:rounded-2xl p-4 sm:p-6 h-full hover:border-secondary/30 transition-colors">
+                    <Quote className="h-6 w-6 sm:h-8 sm:w-8 text-secondary/50 mb-3 sm:mb-4" />
+                    <p className="text-sm sm:text-base text-gray-300 mb-4 sm:mb-6 leading-relaxed italic">
                       "{testimonial.quote}"
                     </p>
-                    <div className="flex items-center justify-between pt-4 border-t border-gray-700/50">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0 pt-3 sm:pt-4 border-t border-gray-700/50">
                       <div>
-                        <p className="font-bold text-white">
+                        <p className="font-bold text-white text-sm sm:text-base">
                           {testimonial.name}
                         </p>
-                        <p className="text-sm text-gray-500">
+                        <p className="text-xs sm:text-sm text-gray-500">
                           {testimonial.role}
                         </p>
                       </div>
-                      <Badge className="bg-secondary/20 text-secondary border-secondary/30 text-xs">
+                      <Badge className="bg-secondary/20 text-secondary border-secondary/30 text-xs w-fit">
                         {testimonial.achievement}
                       </Badge>
                     </div>
@@ -604,7 +678,7 @@ export default function Landing() {
 
             {/* Stats bar */}
             <motion.div
-              className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-8 pt-16 border-t border-gray-800"
+              className="mt-10 sm:mt-16 grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-8 pt-10 sm:pt-16 border-t border-gray-800"
               initial="initial"
               whileInView="animate"
               viewport={{ once: true }}
@@ -621,10 +695,12 @@ export default function Landing() {
                   className="text-center"
                   variants={fadeUp}
                 >
-                  <p className="text-3xl md:text-4xl font-black text-white">
+                  <p className="text-2xl sm:text-3xl md:text-4xl font-black text-white">
                     {stat.value}
                   </p>
-                  <p className="text-sm text-gray-500 mt-1">{stat.label}</p>
+                  <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                    {stat.label}
+                  </p>
                 </motion.div>
               ))}
             </motion.div>
@@ -632,10 +708,10 @@ export default function Landing() {
         </section>
 
         {/* HOW IT WORKS - Asymmetric Layout */}
-        <section className="py-24 md:py-32 px-6 bg-white">
+        <section className="py-16 sm:py-24 md:py-32 px-4 sm:px-6 bg-white">
           <div className="container mx-auto max-w-6xl">
             <motion.div
-              className="grid lg:grid-cols-2 gap-16 items-center"
+              className="grid lg:grid-cols-2 gap-10 sm:gap-16 items-center"
               initial="initial"
               whileInView="animate"
               viewport={{ once: true }}
@@ -643,19 +719,19 @@ export default function Landing() {
             >
               {/* Text content - offset */}
               <motion.div variants={fadeUp}>
-                <Badge className="mb-6 bg-primary/10 text-primary border-primary/20 px-4 py-1.5">
+                <Badge className="mb-4 sm:mb-6 bg-primary/10 text-primary border-primary/20 px-3 sm:px-4 py-1 sm:py-1.5 text-xs sm:text-sm">
                   Simple y efectivo
                 </Badge>
-                <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-6 leading-tight">
+                <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-gray-900 mb-4 sm:mb-6 leading-tight">
                   DE PRINCIPIANTE
                   <br />A <span className="text-primary">FINISHER</span>
                 </h2>
-                <p className="text-xl text-gray-600 mb-8 leading-relaxed">
+                <p className="text-base sm:text-lg md:text-xl text-gray-600 mb-6 sm:mb-8 leading-relaxed">
                   No importa tu nivel actual. Nuestros coaches diseñan un plan
                   personalizado para llevarte exactamente donde quieres llegar.
                 </p>
 
-                <div className="space-y-6">
+                <div className="space-y-4 sm:space-y-6">
                   {[
                     {
                       step: "01",
@@ -673,21 +749,26 @@ export default function Landing() {
                       desc: "Seguimiento personalizado",
                     },
                   ].map((item) => (
-                    <div key={item.step} className="flex gap-4 items-start">
-                      <span className="text-5xl font-black text-primary/20">
+                    <div
+                      key={item.step}
+                      className="flex gap-3 sm:gap-4 items-start"
+                    >
+                      <span className="text-3xl sm:text-4xl md:text-5xl font-black text-primary/20">
                         {item.step}
                       </span>
-                      <div className="pt-2">
-                        <h4 className="text-lg font-bold text-gray-900">
+                      <div className="pt-1 sm:pt-2">
+                        <h4 className="text-base sm:text-lg font-bold text-gray-900">
                           {item.title}
                         </h4>
-                        <p className="text-gray-600">{item.desc}</p>
+                        <p className="text-sm sm:text-base text-gray-600">
+                          {item.desc}
+                        </p>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                <Link to="/register" className="inline-block mt-10">
+                <Link to="/register" className="inline-block mt-8 sm:mt-10">
                   <Button
                     size="lg"
                     className="bg-primary hover:bg-primary/90 text-white group"
@@ -1233,19 +1314,25 @@ export default function Landing() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-black text-white py-16 px-6">
+      <footer className="bg-black text-white py-10 sm:py-16 px-4 sm:px-6">
         <div className="container mx-auto max-w-6xl">
-          <div className="grid md:grid-cols-4 gap-12 mb-12">
-            <div>
-              <img src={logoBlanco} alt="RunnerCoach" className="h-10 mb-4" />
-              <p className="text-gray-500 text-sm leading-relaxed">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-8 sm:gap-12 mb-8 sm:mb-12">
+            <div className="col-span-2 sm:col-span-2 md:col-span-1">
+              <img
+                src={logoBlanco}
+                alt="RunnerCoach"
+                className="h-8 sm:h-10 mb-3 sm:mb-4"
+              />
+              <p className="text-gray-500 text-xs sm:text-sm leading-relaxed">
                 Conectamos runners apasionados con coaches profesionales. Tu
                 viaje hacia tus metas comienza aquí.
               </p>
             </div>
             <div>
-              <h4 className="font-bold mb-4 text-gray-300">Para Runners</h4>
-              <ul className="space-y-2 text-sm text-gray-500">
+              <h4 className="font-bold mb-3 sm:mb-4 text-gray-300 text-sm sm:text-base">
+                Para Runners
+              </h4>
+              <ul className="space-y-2 text-xs sm:text-sm text-gray-500">
                 <li>
                   <a
                     href="#benefits"
@@ -1273,8 +1360,10 @@ export default function Landing() {
               </ul>
             </div>
             <div>
-              <h4 className="font-bold mb-4 text-gray-300">Compañía</h4>
-              <ul className="space-y-2 text-sm text-gray-500">
+              <h4 className="font-bold mb-3 sm:mb-4 text-gray-300 text-sm sm:text-base">
+                Compañía
+              </h4>
+              <ul className="space-y-2 text-xs sm:text-sm text-gray-500">
                 <li>
                   <a href="#" className="hover:text-primary transition-colors">
                     Sobre nosotros
@@ -1293,8 +1382,10 @@ export default function Landing() {
               </ul>
             </div>
             <div>
-              <h4 className="font-bold mb-4 text-gray-300">Legal</h4>
-              <ul className="space-y-2 text-sm text-gray-500">
+              <h4 className="font-bold mb-3 sm:mb-4 text-gray-300 text-sm sm:text-base">
+                Legal
+              </h4>
+              <ul className="space-y-2 text-xs sm:text-sm text-gray-500">
                 <li>
                   <a href="#" className="hover:text-primary transition-colors">
                     Privacidad
@@ -1308,8 +1399,8 @@ export default function Landing() {
               </ul>
             </div>
           </div>
-          <div className="pt-8 border-t border-gray-800 flex flex-col md:flex-row items-center justify-center gap-4">
-            <p className="text-sm text-gray-600">
+          <div className="pt-6 sm:pt-8 border-t border-gray-800 flex flex-col md:flex-row items-center justify-center gap-4">
+            <p className="text-xs sm:text-sm text-gray-600 text-center">
               Hecho de runners para runners
             </p>
           </div>
