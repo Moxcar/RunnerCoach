@@ -990,14 +990,14 @@ export default function Landing() {
                   initial={{ opacity: 0, y: 40 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6 }}
-                  className="max-w-5xl mx-auto"
+                  className="max-w-5xl mx-auto px-4 sm:px-0"
                 >
                   {events.map((event) => (
                     <Link key={event.id} to={getEventUrl(event)}>
-                      <div className="group relative bg-gradient-to-br from-[#e9540d]/10 via-orange-50 to-amber-50 rounded-3xl overflow-hidden border-2 border-[#e9540d]/20 hover:border-[#e9540d] transition-all duration-500 shadow-xl hover:shadow-2xl">
+                      <div className="group relative bg-gradient-to-br from-[#e9540d]/10 via-orange-50 to-amber-50 rounded-2xl sm:rounded-3xl overflow-hidden border-2 border-[#e9540d]/20 hover:border-[#e9540d] transition-all duration-500 shadow-xl hover:shadow-2xl">
                         <div className="grid md:grid-cols-2 gap-0">
                           {/* Image Section */}
-                          <div className="relative h-80 md:h-auto md:min-h-[500px] overflow-hidden bg-gray-900">
+                          <div className="relative h-64 sm:h-80 md:h-auto md:min-h-[500px] overflow-hidden bg-gray-900">
                             {/* Background Image: event image or gradient background */}
                             {event.image_url ? (
                               <img
@@ -1023,38 +1023,41 @@ export default function Landing() {
                               <img
                                 src="/ubyprotrail.svg"
                                 alt="UBYPROTRAIL"
-                                className="w-3/4 max-w-md h-auto opacity-90"
+                                className="w-2/3 sm:w-3/4 max-w-[200px] sm:max-w-md h-auto opacity-90"
                               />
                             </div>
 
                             {/* Overlay */}
                             <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-black/20 to-transparent md:from-black/30 z-20" />
                             {/* Badge on Image */}
-                            <div className="absolute top-6 left-6 z-30">
-                              <Badge className="bg-[#e9540d] text-white border-0 px-4 py-2 text-sm font-bold shadow-lg">
-                                <Flame className="h-4 w-4 mr-2" />
-                                Evento Destacado
+                            <div className="absolute top-3 left-3 sm:top-6 sm:left-6 z-30">
+                              <Badge className="bg-[#e9540d] text-white border-0 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm font-bold shadow-lg">
+                                <Flame className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                                <span className="hidden sm:inline">
+                                  Evento Destacado
+                                </span>
+                                <span className="sm:hidden">Destacado</span>
                               </Badge>
                             </div>
                           </div>
 
                           {/* Content Section */}
-                          <div className="p-8 md:p-12 flex flex-col justify-between bg-white/80 backdrop-blur-sm">
+                          <div className="p-4 sm:p-6 md:p-8 lg:p-12 flex flex-col justify-between bg-white/80 backdrop-blur-sm">
                             <div>
-                              <h3 className="text-3xl md:text-4xl font-black text-gray-900 mb-4 leading-tight">
+                              <h3 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black text-gray-900 mb-3 sm:mb-4 leading-tight break-words">
                                 {event.name}
                               </h3>
 
-                              <div className="space-y-4 mb-6">
-                                <div className="flex items-center gap-3 text-gray-700">
-                                  <div className="p-2 bg-[#e9540d]/10 rounded-lg">
-                                    <Calendar className="h-5 w-5 text-[#e9540d]" />
+                              <div className="space-y-3 sm:space-y-4 mb-4 sm:mb-6">
+                                <div className="flex items-center gap-2 sm:gap-3 text-gray-700">
+                                  <div className="p-1.5 sm:p-2 bg-[#e9540d]/10 rounded-lg flex-shrink-0">
+                                    <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-[#e9540d]" />
                                   </div>
-                                  <div>
-                                    <p className="text-sm text-gray-500">
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs sm:text-sm text-gray-500">
                                       Fecha
                                     </p>
-                                    <p className="font-bold text-lg">
+                                    <p className="font-bold text-sm sm:text-base md:text-lg break-words">
                                       {format(
                                         new Date(event.date),
                                         "EEEE, d 'de' MMMM",
@@ -1067,31 +1070,31 @@ export default function Landing() {
                                 </div>
 
                                 {event.location && (
-                                  <div className="flex items-center gap-3 text-gray-700">
-                                    <div className="p-2 bg-[#e9540d]/10 rounded-lg">
-                                      <MapPin className="h-5 w-5 text-[#e9540d]" />
+                                  <div className="flex items-center gap-2 sm:gap-3 text-gray-700">
+                                    <div className="p-1.5 sm:p-2 bg-[#e9540d]/10 rounded-lg flex-shrink-0">
+                                      <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-[#e9540d]" />
                                     </div>
-                                    <div>
-                                      <p className="text-sm text-gray-500">
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs sm:text-sm text-gray-500">
                                         Ubicación
                                       </p>
-                                      <p className="font-semibold">
+                                      <p className="font-semibold text-sm sm:text-base break-words">
                                         {event.location}
                                       </p>
                                     </div>
                                   </div>
                                 )}
 
-                                <div className="flex items-center gap-3 text-gray-700">
-                                  <div className="p-2 bg-[#b07a1e]/10 rounded-lg">
-                                    <Trophy className="h-5 w-5 text-[#b07a1e]" />
+                                <div className="flex items-center gap-2 sm:gap-3 text-gray-700">
+                                  <div className="p-1.5 sm:p-2 bg-[#b07a1e]/10 rounded-lg flex-shrink-0">
+                                    <Trophy className="h-4 w-4 sm:h-5 sm:w-5 text-[#b07a1e]" />
                                   </div>
-                                  <div>
-                                    <p className="text-sm text-gray-500">
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs sm:text-sm text-gray-500">
                                       Inversión
                                     </p>
                                     <p
-                                      className={`text-2xl font-black ${
+                                      className={`text-lg sm:text-xl md:text-2xl font-black ${
                                         event.price === 0
                                           ? "text-green-600"
                                           : "text-[#e9540d]"
@@ -1108,14 +1111,17 @@ export default function Landing() {
 
                             <Button
                               size="lg"
-                              className="w-full bg-[#e9540d] hover:bg-[#d14a0b] text-white font-bold py-6 text-lg shadow-lg group-hover:shadow-xl transition-all"
+                              className="w-full bg-[#e9540d] hover:bg-[#d14a0b] text-white font-bold py-4 sm:py-5 md:py-6 text-sm sm:text-base md:text-lg shadow-lg group-hover:shadow-xl transition-all"
                               onClick={(e: React.MouseEvent) => {
                                 e.preventDefault();
                                 navigate(getEventUrl(event));
                               }}
                             >
-                              Ver Detalles Completos
-                              <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                              <span className="hidden sm:inline">
+                                Ver Detalles Completos
+                              </span>
+                              <span className="sm:hidden">Ver Detalles</span>
+                              <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 ml-2 group-hover:translate-x-1 transition-transform" />
                             </Button>
                           </div>
                         </div>
