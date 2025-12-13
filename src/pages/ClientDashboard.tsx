@@ -8,6 +8,7 @@ import {
   Package,
   ArrowRight,
   CheckCircle,
+  MapPin,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,6 +16,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { getEventUrl } from "@/lib/utils";
 
 interface Event {
   id: string;
@@ -34,42 +36,29 @@ interface Plan {
   features: string[];
 }
 
-// Componente para la tarjeta de evento
+// Componente para la tarjeta de evento - diseño compacto horizontal
 function EventCard({ event }: { event: Event }) {
+  const navigate = useNavigate();
   const [imageError, setImageError] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
 
-  // Intentar cargar imagen desde storage si image_url es null pero hay slug
+  const isUltraBackyard =
+    event.event_type === "ultra_backyard" ||
+    (event.slug && event.slug.toLowerCase().includes("uby"));
+
   const getImageUrl = () => {
     if (event.image_url) return event.image_url;
 
-    // Si es Ultra Backyard, usar la imagen del logo SVG
-    if (
-      event.event_type === "ultra_backyard" ||
-      (event.slug && event.slug.toLowerCase().includes("uby"))
-    ) {
-      return "/ubyprotrail.svg";
+    // Si es Ultra Backyard, no retornar URL de imagen (se maneja con fondo)
+    if (isUltraBackyard) {
+      return null;
     }
 
     // Si no hay image_url pero hay slug, intentar construir URL desde storage
     if (event.slug) {
-      // Intentar diferentes formatos de URL para imágenes de eventos
-      const possibleUrls = [
-        `${
-          import.meta.env.VITE_SUPABASE_URL
-        }/storage/v1/object/public/event-images/${event.slug}.jpg`,
-        `${
-          import.meta.env.VITE_SUPABASE_URL
-        }/storage/v1/object/public/event-images/${event.slug}.png`,
-        `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/events/${
-          event.slug
-        }.jpg`,
-        `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/events/${
-          event.slug
-        }.png`,
-      ];
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       // Retornar el primer formato (se probará con onError)
-      return possibleUrls[0];
+      return `${supabaseUrl}/storage/v1/object/public/event-images/${event.slug}.jpg`;
     }
 
     return null;
@@ -78,19 +67,41 @@ function EventCard({ event }: { event: Event }) {
   const imageUrl = getImageUrl();
 
   return (
-    <div className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
-      <div className="relative w-full aspect-video overflow-hidden bg-gradient-to-br from-[#e9540d]/10 to-[#b07a1e]/10">
-        {imageUrl && !imageError ? (
+    <div
+      className="flex gap-3 sm:gap-4 p-3 sm:p-4 border rounded-lg hover:shadow-md hover:border-primary/30 transition-all cursor-pointer bg-card"
+      onClick={() => navigate(getEventUrl(event))}
+    >
+      {/* Imagen/Icono - tamaño aumentado */}
+      <div className="relative flex-shrink-0 w-24 h-24 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-lg overflow-hidden bg-gradient-to-br from-[#e9540d]/10 to-[#b07a1e]/10 border border-border/50">
+        {isUltraBackyard ? (
+          <>
+            {/* Fondo para Ultra Backyard */}
+            <div
+              className="absolute inset-0 w-full h-full bg-cover bg-center"
+              style={{
+                backgroundImage: `url('/event-background-gradient.png')`,
+              }}
+            />
+            {/* Logo SVG: ubyprotrail.svg centrado */}
+            <div className="absolute inset-0 flex items-center justify-center z-10">
+              <img
+                src="/ubyprotrail.svg"
+                alt="UBYPROTRAIL"
+                className="w-3/4 max-w-[80px] sm:max-w-[100px] h-auto opacity-90"
+              />
+            </div>
+          </>
+        ) : imageUrl && !imageError ? (
           <>
             {imageLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#e9540d]/10 to-[#b07a1e]/10 z-10">
-                <Calendar className="h-12 w-12 text-[#e9540d]/30 animate-pulse" />
+                <Calendar className="h-6 w-6 sm:h-8 sm:w-8 text-[#e9540d]/30 animate-pulse" />
               </div>
             )}
             <img
               src={imageUrl}
               alt={event.name}
-              className={`w-full h-full object-cover ${
+              className={`w-full h-full object-contain ${
                 imageLoading ? "opacity-0" : "opacity-100"
               } transition-opacity duration-300`}
               onError={() => {
@@ -102,38 +113,45 @@ function EventCard({ event }: { event: Event }) {
             />
           </>
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#e9540d]/10 to-[#b07a1e]/10">
-            <div className="text-center">
-              <Calendar className="h-12 w-12 text-[#e9540d]/30 mx-auto mb-2" />
-              <p className="text-xs text-[#e9540d]/50 font-medium">
-                {event.name}
-              </p>
-            </div>
+          <div className="w-full h-full flex items-center justify-center">
+            <Calendar className="h-8 w-8 sm:h-10 sm:w-10 text-[#e9540d]/40" />
           </div>
         )}
       </div>
-      <div className="p-3">
-        <p className="font-medium text-base">{event.name}</p>
-        <p className="text-sm text-muted-foreground mt-1">
-          {format(new Date(event.date), "dd MMM yyyy", {
-            locale: es,
-          })}
-        </p>
+
+      {/* Info del evento */}
+      <div className="flex-1 min-w-0 flex flex-col justify-center">
+        <h4 className="font-semibold text-base sm:text-lg text-foreground line-clamp-2 mb-1.5">
+          {event.name}
+        </h4>
+        <div className="flex items-center gap-1.5 mt-1 text-sm text-muted-foreground">
+          <Calendar className="h-4 w-4 flex-shrink-0 text-primary/70" />
+          <span>
+            {format(new Date(event.date), "dd MMM yyyy", { locale: es })}
+          </span>
+        </div>
         {event.location && (
-          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-            <span>📍</span>
-            <span>{event.location}</span>
-          </p>
+          <div className="flex items-center gap-1.5 mt-1 text-sm text-muted-foreground">
+            <MapPin className="h-4 w-4 flex-shrink-0 text-primary/70" />
+            <span className="truncate">{event.location}</span>
+          </div>
         )}
         <div className="mt-2">
-          <span className="text-sm font-semibold">
+          <span className="text-sm sm:text-base font-bold">
             {event.price === 0 ? (
               <span className="text-green-600">Gratis</span>
             ) : (
-              `$${event.price.toLocaleString()} MXN`
+              <span className="text-primary">
+                ${event.price.toLocaleString()} MXN
+              </span>
             )}
           </span>
         </div>
+      </div>
+
+      {/* Flecha indicadora */}
+      <div className="flex-shrink-0 flex items-center">
+        <ArrowRight className="h-4 w-4 text-muted-foreground" />
       </div>
     </div>
   );
